@@ -13,31 +13,48 @@
 # limitations under the License.
 
 defmodule ArkeAuth.Core.Otp do
-
   alias Arke.QueryManager
   alias Arke.Boundary.ArkeManager
 
   @moduledoc """
-             Documentation for `Otp`.
-             """
+  Documentation for `Otp`.
+  """
 
   use Arke.System
 
   arke id: :otp do
   end
 
-  def generate(project, id, action, expiry_datetime \\ nil) do
+  def generate(project, id, action, expiry_datetime \\ get_expiry_datetime()) do
     otp_arke = ArkeManager.get(:otp, :arke_system)
-    code = Enum.random(1_000..9_999) |> Integer.to_string
+    code = Enum.random(1_000..9_999) |> Integer.to_string()
     id = parse_otp_id(action, id)
+
     case QueryManager.get_by(project: project, arke: otp_arke, id: id, action: action) do
       nil -> nil
       otp -> QueryManager.delete(project, otp)
     end
 
-    expiry_datetime = expiry_datetime || (NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second))
-    QueryManager.create(project, otp_arke, id: id, code: code, action: action, expiry_datetime: expiry_datetime)
+    expiry_datetime =
+      expiry_datetime || NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second)
+
+    QueryManager.create(project, otp_arke,
+      id: id,
+      code: code,
+      action: action,
+      expiry_datetime: expiry_datetime
+    )
   end
 
   def parse_otp_id(action, id), do: "otp_#{action}_#{id}"
+
+  defp get_expiry_datetime() do
+    {value, unit} = Application.get_env(:arke_auth, ArkeAuth.Otp, [])[:ttl] || {5, :minutes}
+    seconds = convert_to_seconds(value, unit)
+    NaiveDateTime.utc_now() |> NaiveDateTime.add(seconds, :second)
+  end
+
+  defp convert_to_seconds(value, :seconds), do: value
+  defp convert_to_seconds(value, :minutes), do: value * 60
+  defp convert_to_seconds(value, :days), do: value * 24 * 60 * 60
 end
