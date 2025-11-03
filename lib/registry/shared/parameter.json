@@ -34,7 +34,7 @@
       "persistence": "arke_parameter",
       "required": false,
       "strip": false,
-"lowercase": false,
+      "lowercase": false,
       "unique": false,
       "values": null
     },
@@ -53,7 +53,7 @@
       "persistence": "arke_parameter",
       "required": false,
       "strip": false,
-"lowercase": false,
+      "lowercase": false,
       "unique": false,
       "values": null
     },
@@ -99,7 +99,10 @@
       "nullable": true,
       "persistence": "arke_parameter",
       "required": false,
-      "filter_keys": ["id", "arke_id"],
+      "filter_keys": [
+        "id",
+        "arke_id"
+      ],
       "only_run_time": false
     },
     {

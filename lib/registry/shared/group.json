@@ -8,7 +8,8 @@
         "super_admin",
         "member_public"
       ]
-    },{
+    },
+    {
       "id": "enable_sso",
       "label": "Enable SSO",
       "description": "Group containing all the arkes which can use the SSO function",
