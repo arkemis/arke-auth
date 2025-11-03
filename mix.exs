@@ -1,6 +1,6 @@
 defmodule ArkeAuth.MixProject do
   use Mix.Project
-  @version "0.4.0-bulk.0"
+  @version "0.4.0-bulk.1"
   @scm_url "https://github.com/arkemishub/arke-auth"
   @site_url "https://arkehub.com"
 
@@ -55,7 +55,7 @@ defmodule ArkeAuth.MixProject do
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:arke, "~> 0.4.0-bulk.0"}
+      {:arke, "~> 0.4.0-bulk.1"}
     ])
   end
 
