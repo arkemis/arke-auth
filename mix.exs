@@ -51,7 +51,7 @@ defmodule ArkeAuth.MixProject do
       {:bcrypt_elixir, "~> 1.0"},
       {:typed_struct, "~> 0.2.1"},
       {:comeonin, "~> 4.0"},
-      {:guardian, "~> 2.2.3"},
+      {:guardian, "~> 2.4.0"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:excoveralls, "~> 0.10", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
