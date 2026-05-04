@@ -1,6 +1,6 @@
 # ArkeAuth
 
-![Auth](https://github.com/arkemishub/arke-auth/assets/81776297/07a75110-f7f5-4987-8398-7fa370e8dc1a)
+![Auth](https://github.com/arkemis/arke-auth/assets/81776297/07a75110-f7f5-4987-8398-7fa370e8dc1a)
 
 ## Installation
 
@@ -18,4 +18,3 @@ end
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/arke_auth>.
-
