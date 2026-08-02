@@ -23,7 +23,6 @@ defmodule ArkeAuth.MixProject do
       aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: [warnings_as_errors: false],
-      test_coverage: [tool: ExCoveralls],
       versioning: versioning()
     ]
   end
@@ -53,7 +52,6 @@ defmodule ArkeAuth.MixProject do
       {:comeonin, "~> 4.0"},
       {:guardian, "~> 2.2.3"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
-      {:excoveralls, "~> 0.10", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:arke, "~> 0.6.0"}
     ])
