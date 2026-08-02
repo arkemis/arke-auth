@@ -4,7 +4,7 @@ defmodule ArkeAuth.Core.UserTest do
   describe "User" do
     test "create user" do
       user_model = ArkeManager.get(:user, :arke_system)
-      data = [username: "arke_auth_user", password: "password", type: "customer"]
+      data = [username: "arke_auth_user", password: "password", email: "user@arke.test"]
 
       {:ok, unit} = QueryManager.create(:test_schema, user_model, data)
       db_user = QueryManager.get_by(id: unit.id, project: :test_schema)
@@ -22,12 +22,12 @@ defmodule ArkeAuth.Core.UserTest do
       data = [username: "arke_auth_user", password: "password"]
 
       {:error, msg} = QueryManager.create(:test_schema, user_model, data)
-      assert msg == [%{context: "parameter_validation", message: "type: is required"}]
+      assert msg == [%{context: "parameter_validation", message: "email: is required"}]
     end
 
     test "check_password" do
       user_model = ArkeManager.get(:user, :arke_system)
-      data = [username: "arke_auth_user", password: "password", type: "customer"]
+      data = [username: "arke_auth_user", password: "password", email: "user@arke.test"]
 
       {:ok, unit} = QueryManager.create(:test_schema, user_model, data)
 
@@ -35,13 +35,11 @@ defmodule ArkeAuth.Core.UserTest do
 
       assert User.check_password(unit, "invalid") ==
                {:error, [%{context: "auth", message: "invalid password"}]}
-
-      QueryManager.delete(:test_schema, unit)
     end
 
     test "update_password" do
       user_model = ArkeManager.get(:user, :arke_system)
-      data = [username: "arke_auth_user", password: "password", type: "customer"]
+      data = [username: "arke_auth_user", password: "password", email: "user@arke.test"]
 
       {:ok, unit} = QueryManager.create(:test_schema, user_model, data)
       assert User.check_password(unit, "password") == {:ok, unit}

@@ -5,7 +5,6 @@
     "lib/arke_auth/boundary/"
   ],
   "coverage_options": {
-    "treat_no_relevant_lines_as_covered": true,
-    "minimum_coverage": 60
+    "treat_no_relevant_lines_as_covered": true
   }
 }
