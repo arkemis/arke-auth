@@ -13,7 +13,6 @@
 # limitations under the License.
 
 defmodule ArkeAuth.Core.User do
-  import Comeonin.Bcrypt, only: [hashpwsalt: 1, checkpw: 2]
   alias ArkeAuth.Boundary.Validators
 
   alias Arke.Utils.ErrorGenerator, as: Error
@@ -31,7 +30,7 @@ defmodule ArkeAuth.Core.User do
     case Map.get(data, :arke_id) do
       nil ->
         with {:ok, pwd} <- Validators.check_user_password(data) do
-          new_data = Map.put(data, :password_hash, hashpwsalt(pwd)) |> Map.delete(:password)
+          new_data = Map.put(data, :password_hash, Bcrypt.hash_pwd_salt(pwd)) |> Map.delete(:password)
           {:ok, new_data}
         else
           {:error, msg} -> {:error, msg}
@@ -65,7 +64,7 @@ defmodule ArkeAuth.Core.User do
   @spec check_password(user :: ArkeAuth.Core.Unit.t(), pwd :: String.t()) ::
           {:ok, ArkeAuth.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def check_password(%{data: data} = user, pwd) do
-    case checkpw(pwd, data.password_hash) do
+    case Bcrypt.verify_pass(pwd, data.password_hash) do
       true -> {:ok, user}
       false -> Error.create(:auth, "invalid password")
     end
@@ -84,6 +83,6 @@ defmodule ArkeAuth.Core.User do
   @spec update_password(user :: ArkeAuth.Core.Unit.t(), new_pwd :: String.t()) ::
           {:ok, ArkeAuth.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def update_password(user, new_pwd) do
-    Arke.QueryManager.update(user, password_hash: hashpwsalt(new_pwd))
+    Arke.QueryManager.update(user, password_hash: Bcrypt.hash_pwd_salt(new_pwd))
   end
 end

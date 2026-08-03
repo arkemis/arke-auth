@@ -17,8 +17,6 @@ defmodule ArkeAuth.Core.Auth do
     `ArkeAuth.Core.Auth` documentation
   """
 
-  import Comeonin.Bcrypt, only: [checkpw: 2, dummy_checkpw: 0]
-
   alias Arke.QueryManager
   alias ArkeAuth.Core.User
   alias ArkeAuth.{Guardian, SSOGuardian}
@@ -119,11 +117,11 @@ defmodule ArkeAuth.Core.Auth do
   defp get_by_username(username, project) when is_binary(username) do
     case QueryManager.get_by(project: project, arke_id: :user, username: username) do
       [] ->
-        dummy_checkpw()
+        Bcrypt.no_user_verify()
         Error.create(:auth, "login error")
 
       nil ->
-        dummy_checkpw()
+        Bcrypt.no_user_verify()
         Error.create(:auth, "login error")
 
       unit ->
@@ -132,7 +130,7 @@ defmodule ArkeAuth.Core.Auth do
   end
 
   defp verify_password(password, user) when is_binary(password) do
-    if checkpw(password, user.data.password_hash) do
+    if Bcrypt.verify_pass(password, user.data.password_hash) do
       {:ok, user}
     else
       Error.create(:auth, "login error")
