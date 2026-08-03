@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-07-30
+
+### Changed
+- Usage rules by @ilyichv in [#39](https://github.com/arkemis/arke-auth/pull/39)
+- Bump the actions-deps group across 1 directory with 2 updates by @dependabot[bot] in [#36](https://github.com/arkemis/arke-auth/pull/36)
+- Bump excoveralls from 0.18.1 to 0.18.5 by @dependabot[bot] in [#33](https://github.com/arkemis/arke-auth/pull/33)
+- Bump the actions-deps group across 1 directory with 3 updates by @dependabot[bot] in [#29](https://github.com/arkemis/arke-auth/pull/29)
+- Dependabot + fix legacy arkemishub links by @ilyichv
+- Matrix checks by @ilyichv in [#28](https://github.com/arkemis/arke-auth/pull/28)
+
+### New Contributors
+* @dependabot[bot] made their first contribution in [#36](https://github.com/arkemis/arke-auth/pull/36)
+* @github-actions[bot] made their first contribution
+
 ## [0.4.4] - 2026-04-14
 
 ### Added
@@ -161,6 +175,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * @ilyichv made their first contribution
 * @ErikFerrari made their first contribution in [#2](https://github.com/arkemis/arke-auth/pull/2)
 
+[0.4.5]: https://github.com/arkemis/arke-auth/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/arkemis/arke-auth/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/arkemis/arke-auth/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/arkemis/arke-auth/compare/v0.4.0...v0.4.2
