@@ -14,8 +14,8 @@
 
 defmodule ArkeAuth.Boundary.Validators do
   @moduledoc """
-             Module to manage all the validatos for `ArkeAuth`
-             """
+  Module to manage all the validatos for `ArkeAuth`
+  """
   alias Arke.Utils.ErrorGenerator, as: Error
 
   ######################################################################################################################
