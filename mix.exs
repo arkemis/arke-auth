@@ -1,6 +1,6 @@
 defmodule ArkeAuth.MixProject do
   use Mix.Project
-  @version "0.4.4"
+  @version "0.4.5"
   @scm_url "https://github.com/arkemis/arke-auth"
   @site_url "https://arkehub.com"
 
@@ -81,7 +81,7 @@ defmodule ArkeAuth.MixProject do
     [
       # This option is only needed when you don't want to use the OTP application name
       name: "arke_auth",
-      # These are the default files included in the package
+      files: ~w(lib mix.exs README* LICENSE* CHANGELOG* usage-rules.md usage-rules),
       licenses: ["Apache-2.0"],
       links: %{
         "Website" => @site_url,
