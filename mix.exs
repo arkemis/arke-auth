@@ -47,10 +47,8 @@ defmodule ArkeAuth.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     List.flatten([
-      {:bcrypt_elixir, "~> 1.0"},
-      {:typed_struct, "~> 0.2.1"},
-      {:comeonin, "~> 4.0"},
-      {:guardian, "~> 2.2.3"},
+      {:bcrypt_elixir, "~> 3.3"},
+      {:guardian, "~> 2.4"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:arke, "~> 0.7.0"}
