@@ -48,7 +48,6 @@ defmodule ArkeAuth.MixProject do
   defp deps do
     List.flatten([
       {:bcrypt_elixir, "~> 3.3"},
-      {:typed_struct, "~> 0.2.1"},
       {:guardian, "~> 2.4"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
