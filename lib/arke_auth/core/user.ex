@@ -30,7 +30,9 @@ defmodule ArkeAuth.Core.User do
     case Map.get(data, :arke_id) do
       nil ->
         with {:ok, pwd} <- Validators.check_user_password(data) do
-          new_data = Map.put(data, :password_hash, Bcrypt.hash_pwd_salt(pwd)) |> Map.delete(:password)
+          new_data =
+            Map.put(data, :password_hash, Bcrypt.hash_pwd_salt(pwd)) |> Map.delete(:password)
+
           {:ok, new_data}
         else
           {:error, msg} -> {:error, msg}
