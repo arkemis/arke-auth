@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-03
+
+### Fixed
+- Bump bcrypt_elixir to 3.3 and guardian to 2.4 by @ilyichv in [#41](https://github.com/arkemis/arke-auth/pull/41)
+- Restore test suite by @ilyichv in [#40](https://github.com/arkemis/arke-auth/pull/40)
+
 ## [0.4.5] - 2026-07-30
 
 ### Changed
@@ -175,6 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * @ilyichv made their first contribution
 * @ErikFerrari made their first contribution in [#2](https://github.com/arkemis/arke-auth/pull/2)
 
+[0.5.0]: https://github.com/arkemis/arke-auth/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/arkemis/arke-auth/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/arkemis/arke-auth/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/arkemis/arke-auth/compare/v0.4.2...v0.4.3
