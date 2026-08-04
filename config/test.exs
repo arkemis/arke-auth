@@ -22,3 +22,12 @@ config :arke_auth, ArkeAuth.Guardian,
   secret_key: "5hyuhkszkm8jilkDxrXGTBz1z1KJk5dtVwLgLOXHQRsPEtxii3wFcAbx4Gtj1aQB",
   verify_issuer: true,
   token_ttl: %{"access" => {7, :days}, "refresh" => {30, :days}}
+
+# Test-only: the library keeps requiring consumers to configure SSO themselves.
+# Without this the "sso" branch of Auth.create_tokens/2 is unreachable
+# (encode_and_sign returns {:error, :secret_not_found}).
+config :arke_auth, ArkeAuth.SSOGuardian,
+  issuer: "arke_auth_sso",
+  secret_key: "Kx7pQ2mRvN8tYbHjWs4ZcLfD6gEaXuT3nB9kVyPrM5oJqShFdCwG1iAzUeO0lNyB",
+  verify_issuer: true,
+  token_ttl: %{"access" => {1, :hours}, "refresh" => {1, :days}}

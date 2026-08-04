@@ -50,6 +50,9 @@ defmodule ArkeAuth.MixProject do
       {:bcrypt_elixir, "~> 3.3"},
       {:guardian, "~> 2.4"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
+      # Guardian only generates ArkeAuth.Guardian.Plug when Plug is loaded;
+      # without it get_member/2 is untestable here. Consumers bring their own.
+      {:plug, "~> 1.14", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:arke, "~> 0.8.0"}
     ])
