@@ -54,4 +54,33 @@ defmodule ArkeAuth.Core.UserTest do
       assert User.check_password(new_user, "new_password") == {:ok, new_user}
     end
   end
+
+  describe "before_load/2" do
+    test "a create without a password is rejected" do
+      assert User.before_load(%{username: "arke_auth_user"}, :create) ==
+               {:error, [%{context: "auth", message: "password is required"}]}
+    end
+
+    test "data already carrying an arke_id is left alone" do
+      data = %{arke_id: :user, username: "arke_auth_user", password_hash: "stored"}
+
+      assert User.before_load(data, :create) == {:ok, data}
+    end
+
+    test "only :create hashes" do
+      data = %{username: "arke_auth_user", password: "password"}
+
+      assert User.before_load(data, :update) == {:ok, data}
+    end
+  end
+
+  test "before_struct_encode strips the password hash" do
+    user_model = ArkeManager.get(:user, :arke_system)
+    data = [username: "arke_auth_user", password: "password", email: "user@arke.test"]
+    {:ok, unit} = QueryManager.create(:test_schema, user_model, data)
+
+    assert {:ok, encoded} = User.before_struct_encode(nil, unit)
+    refute Map.has_key?(encoded.data, :password_hash)
+    assert encoded.data.username == "arke_auth_user"
+  end
 end
