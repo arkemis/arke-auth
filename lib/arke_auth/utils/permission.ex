@@ -16,8 +16,6 @@ defmodule ArkeAuth.Utils.Permission do
   alias Arke.QueryManager
   alias Arke.Boundary.ArkeManager
 
-  alias Arke.Utils.ErrorGenerator, as: Error
-
   def get_public_permission(%{metadata: %{project: project}} = arke),
     do: get_public_permission(to_string(arke.id), project)
 
@@ -31,7 +29,7 @@ defmodule ArkeAuth.Utils.Permission do
     do: get_member_permission(member, to_string(arke.id), project)
 
   def get_member_permission(%{impersonate: true} = member, arke_id, project) do
-    parent_list = get_parent_list(member)
+    _parent_list = get_parent_list(member)
     permissions = get_arke_permission(arke_id, project, member)
     member_public_permission = get_permission_dict(permissions, nil, true)
     member_permission = get_permission_dict(permissions, member, false)
@@ -56,7 +54,7 @@ defmodule ArkeAuth.Utils.Permission do
   end
 
   def get_member_permission(member, arke_id, project) do
-    parent_list = get_parent_list(member)
+    _parent_list = get_parent_list(member)
     permissions = get_arke_permission(arke_id, project, member)
     member_public_permission = get_permission_dict(permissions, nil, true)
     member_permission = get_permission_dict(permissions, member, false)
@@ -89,7 +87,7 @@ defmodule ArkeAuth.Utils.Permission do
     |> QueryManager.all()
   end
 
-  defp get_permission_dict(permission_list, member \\ nil, is_public \\ false) do
+  defp get_permission_dict(permission_list, member, is_public) do
     cond =
       if is_public,
         do: fn parent_id -> parent_id == "member_public" end,
@@ -107,12 +105,10 @@ defmodule ArkeAuth.Utils.Permission do
   defp get_parent_list(nil), do: ["member_public"]
   defp get_parent_list(member), do: ["member_public", to_string(member.arke_id)]
 
-  defp permission_dict(data, member \\ nil)
-
-  defp permission_dict(data, %{arke_id: :super_admin} = _member),
+  defp permission_dict(_data, %{arke_id: :super_admin} = _member),
     do: %{filter: nil, get: true, put: true, post: true, delete: true}
 
-  defp permission_dict(data, %{data: %{subscription_active: false}}),
+  defp permission_dict(_data, %{data: %{subscription_active: false}}),
     do: %{filter: nil, get: false, put: false, post: false, delete: false}
 
   defp permission_dict(data, _member) do

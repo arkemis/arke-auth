@@ -30,10 +30,6 @@ defmodule ArkeAuth.SSOGuardian do
     {:ok, sub}
   end
 
-  def subject_for_token(_, _) do
-    {:error, :reason_for_error}
-  end
-
   @doc """
   Get from the token the resource
   """
@@ -45,12 +41,8 @@ defmodule ArkeAuth.SSOGuardian do
         {:error, :unauthorized}
 
       user ->
-        data = Map.get(user, :data, %{})
+        _data = Map.get(user, :data, %{})
         {:ok, user}
     end
-  end
-
-  def resource_from_claims(_claims) do
-    {:error, :reason_for_error}
   end
 end

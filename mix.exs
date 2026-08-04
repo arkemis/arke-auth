@@ -4,6 +4,8 @@ defmodule ArkeAuth.MixProject do
   @scm_url "https://github.com/arkemis/arke-auth"
   @site_url "https://arkehub.com"
 
+  @xref_exclude [ArkeAuth.Guardian.Plug]
+
   def project do
     [
       app: :arke_auth,
@@ -22,7 +24,7 @@ defmodule ArkeAuth.MixProject do
       deps: deps(),
       aliases: aliases(),
       elixirc_paths: elixirc_paths(Mix.env()),
-      elixirc_options: [warnings_as_errors: false],
+      elixirc_options: [no_warn_undefined: @xref_exclude],
       versioning: versioning()
     ]
   end
