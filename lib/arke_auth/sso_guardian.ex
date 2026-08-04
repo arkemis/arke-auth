@@ -45,7 +45,7 @@ defmodule ArkeAuth.SSOGuardian do
         {:error, :unauthorized}
 
       user ->
-        data = Map.get(user, :data, %{})
+        _data = Map.get(user, :data, %{})
         {:ok, user}
     end
   end

@@ -14,7 +14,6 @@
 
 defmodule ArkeAuth.Core.Member do
   alias Arke.QueryManager
-  alias ArkeAuth.Core.Member
   alias Arke.Boundary.ArkeManager
 
   @moduledoc """
@@ -25,7 +24,7 @@ defmodule ArkeAuth.Core.Member do
   group id: "arke_auth_member" do
   end
 
-  def on_unit_load(arke, data, _persistence_fn), do: {:ok, data}
+  def on_unit_load(_arke, data, _persistence_fn), do: {:ok, data}
   def before_unit_load(_arke, data, _persistence_fn), do: {:ok, data}
   def on_unit_validate(_arke, unit), do: {:ok, unit}
 
@@ -68,7 +67,7 @@ defmodule ArkeAuth.Core.Member do
         %{data: %{arke_system_user: arke_system_user}, metadata: %{project: project}} = unit
       )
       when is_map(arke_system_user) do
-    arke_user = ArkeManager.get(:user, :arke_system)
+    _arke_user = ArkeManager.get(:user, :arke_system)
 
     user_data =
       Enum.map(arke_system_user, fn {key, value} -> {String.to_existing_atom(key), value} end)
@@ -99,68 +98,4 @@ defmodule ArkeAuth.Core.Member do
   end
 
   def before_unit_delete(_arke, unit), do: {:ok, unit}
-
-  defp handle_get_permission(member, %{metadata: %{project: project}} = arke) do
-    arke_link = ArkeManager.get(:arke_link, :arke_system)
-
-    arke_member_public =
-      QueryManager.get_by(project: project, arke_id: "ake", id: "member_public")
-
-    parent_id_list = get_parent_list(member)
-
-    permissions =
-      QueryManager.query(project: project, arke: arke_link.id)
-      |> QueryManager.where(
-        parent_id__in: parent_id_list,
-        child_id: Atom.to_string(arke.id),
-        type: "permission"
-      )
-      |> QueryManager.all()
-
-    member_public_permission = get_permission_dict(permissions, true)
-    member_permission = get_permission_dict(permissions, false)
-
-    data =
-      Map.merge(member_public_permission, member_permission, fn _k, v1, v2 ->
-        if v1, do: v1, else: v2
-      end)
-      |> permission_dict
-
-    if Map.to_list(data) == [] do
-      {:error, nil}
-    else
-      {:ok, data}
-    end
-  end
-
-  defp permission_dict(data \\ %{}) do
-    updated_data = for {key, val} <- data, into: %{}, do: {to_string(key), val}
-
-    filter = Map.get(updated_data, "filter", nil)
-    get = Map.get(updated_data, "get", false)
-    put = Map.get(updated_data, "put", false)
-    delete = Map.get(updated_data, "delete", false)
-    post = Map.get(updated_data, "post", false)
-    child_only = Map.get(updated_data, "child_only", false)
-
-    %{filter: filter, get: get, put: put, delete: delete, post: post, child_only: child_only}
-  end
-
-  defp get_permission_dict(permission_list, is_public \\ false) do
-    cond =
-      if is_public,
-        do: fn parent_id -> parent_id == "member_public" end,
-        else: fn parent_id -> parent_id != "member_public" end
-
-    case Enum.find(permission_list, fn p -> cond.(p.parent_id) end) do
-      nil ->
-        permission_dict()
-
-      u ->
-        permission_dict(u.metadata)
-    end
-  end
-
-  defp get_parent_list(nil), do: ["member_public"]
-  defp get_parent_list(member), do: ["member_public", to_string(member.arke_id)]
 end
