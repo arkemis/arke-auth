@@ -33,9 +33,9 @@
 - In a Plug context, read the current member with
   `ArkeAuth.Guardian.get_member(conn)`; pass `impersonate: true` to get the
   impersonated target instead of the impersonating admin.
-- `Guardian.resource_from_claims/1` calls `String.to_existing_atom` on the
-  project claim — if the project atom is not loaded yet it raises
-  `ArgumentError` instead of returning `{:error, _}`.
+- `Guardian.resource_from_claims/1` returns `{:error, :unauthorized}` for a
+  token whose `project` claim is not a loaded atom — the same answer as for an
+  unknown or inactive member.
 - Impersonation is opt-in and its config is all-or-nothing: with
   `enable_impersonate: true` you MUST also set `allowed_methods`, or every
   impersonated permission check crashes with `BadMapError`:

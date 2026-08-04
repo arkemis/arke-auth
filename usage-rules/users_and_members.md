@@ -24,7 +24,8 @@
   ```
 
 - To link an existing User instead, pass its id as a binary:
-  `arke_system_user: "user_id"`.
+  `arke_system_user: "user_id"`. Either path stores it as a binary, so
+  `member.data.arke_system_user` is always a string.
 - Passwords are hashed (bcrypt) in the `:user` Arke's `before_load` hook, which
   fires only on `:create`. Never write a user record through a path that
   bypasses `Arke.QueryManager.create/3`.

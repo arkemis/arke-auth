@@ -51,5 +51,7 @@
 ## Reset-password tokens
 
 - Create via `Arke.QueryManager.create/3` on the `:reset_password_token` Arke;
-  `user_id` is mandatory and its absence raises `KeyError` (not a validation
-  error). `token` and `expiration` are auto-generated in `before_load`.
+  `user_id` is mandatory and its absence comes back as
+  `{:error, "Undefined function"}`, not a validation error (the `KeyError` is
+  swallowed by arke's hook dispatch). `token` and `expiration` are
+  auto-generated in `before_load`.

@@ -3,15 +3,14 @@
 - Do not upgrade `comeonin`/`bcrypt_elixir` independently: the package pins the
   legacy `comeonin ~> 4.0` API (`Comeonin.Bcrypt.hashpwsalt/1`, `checkpw/2`)
   which was removed in comeonin 5.x. Upgrading breaks password verification.
-- Do not call or copy the private permission helpers inside
-  `ArkeAuth.Core.Member` (`handle_get_permission/2` and friends) — they are
-  dead, buggy leftovers. `ArkeAuth.Utils.Permission` is the only permission
-  API.
-- Do not treat the test suite as executable documentation — parts of it
-  reference helpers that no longer exist.
+- `ArkeAuth.Utils.Permission` is the only permission API. The dead copies that
+  used to live in `ArkeAuth.Core.Member` (`handle_get_permission/2` and
+  friends) have been removed.
 - Member `arke_id`s and inline `arke_system_user` keys go through
-  `String.to_existing_atom` — typos raise `ArgumentError` rather than
-  returning a validation error. Validate input keys before calling.
+  `String.to_existing_atom` — a typo does not produce a validation error. The
+  raise is swallowed by arke's hook dispatch and comes back as
+  `{:error, "Undefined function"}`, with nothing written. Validate input keys
+  before calling.
 - `Member` update hooks call `Atom.to_string(unit.id)` — always work with
   units whose ids are atoms (the normal case when they come from
   `QueryManager`); hand-built units with binary ids crash.

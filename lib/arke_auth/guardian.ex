@@ -66,16 +66,25 @@ defmodule ArkeAuth.Guardian do
   Get from the token the resource
   """
   def resource_from_claims(claims) do
-    id = claims["sub"]["id"]
-    project = String.to_existing_atom(claims["sub"]["project"])
-
-    case Arke.QueryManager.get_by(project: project, group_id: "arke_auth_member", id: id) do
-      nil ->
-        {:error, :unauthorized}
-
-      member ->
-        check_member(member)
+    with project when not is_nil(project) <- existing_atom(claims["sub"]["project"]),
+         member when not is_nil(member) <-
+           Arke.QueryManager.get_by(
+             project: project,
+             group_id: "arke_auth_member",
+             id: claims["sub"]["id"]
+           ) do
+      check_member(member)
+    else
+      nil -> {:error, :unauthorized}
     end
+  end
+
+  # a token naming a project this node never loaded is unauthorized: the raise
+  # escapes the Guardian error handler and surfaces as a 500
+  defp existing_atom(project) do
+    String.to_existing_atom(project)
+  rescue
+    ArgumentError -> nil
   end
 
   def resource_from_claims(_claims) do

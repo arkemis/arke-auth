@@ -32,15 +32,18 @@ defmodule ArkeAuth.Core.Auth do
     - user => %Arke.Core.Unit{} => the user to update
     - data => %map => map containing all the data to update
 
+  `data` must be a map: `:password` is silently dropped, so this cannot be used
+  to change a password (see `change_password/3`).
+
   ## Example
-      iex> params = [username: "test", password: "password", type: "customer"]
-      ...> user = Arke.QuseryManager.get_by(id: "test")
-      ...> ArkeAuth.Core.update(user, params)
+      iex> params = %{username: "test", type: "customer"}
+      ...> user = Arke.QueryManager.get_by(id: "test")
+      ...> ArkeAuth.Core.Auth.update(user, params)
   ## Return
       {:ok, %Arke.Core.Unit{}}
       {:error, msg}
   """
-  @spec update(user :: Arke.Core.Unit.t(), data :: [ArkeAuth.Core.User.t()]) ::
+  @spec update(user :: Arke.Core.Unit.t(), data :: map()) ::
           {:ok, Arke.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def update(user, data) do
     with {:ok, user} <- Arke.QueryManager.update(user, check_password_data(data)) do
