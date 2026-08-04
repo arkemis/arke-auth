@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-08-04
+
+### Changed
+- Clear compiler warnings and gate on them in ci by @ilyichv in [#44](https://github.com/arkemis/arke-auth/pull/44)
+- Bump arke to v0.8.0 by @ilyichv in [#43](https://github.com/arkemis/arke-auth/pull/43)
+- Format pass and lint CI leg by @ilyichv in [#42](https://github.com/arkemis/arke-auth/pull/42)
+
 ## [0.5.0] - 2026-08-03
 
 ### Fixed
@@ -181,6 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * @ilyichv made their first contribution
 * @ErikFerrari made their first contribution in [#2](https://github.com/arkemis/arke-auth/pull/2)
 
+[0.6.0]: https://github.com/arkemis/arke-auth/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/arkemis/arke-auth/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/arkemis/arke-auth/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/arkemis/arke-auth/compare/v0.4.3...v0.4.4
