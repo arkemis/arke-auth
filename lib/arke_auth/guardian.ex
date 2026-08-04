@@ -58,10 +58,6 @@ defmodule ArkeAuth.Guardian do
     {:ok, sub}
   end
 
-  def subject_for_token(_, _) do
-    {:error, :reason_for_error}
-  end
-
   @doc """
   Get from the token the resource
   """
@@ -76,10 +72,6 @@ defmodule ArkeAuth.Guardian do
       member ->
         check_member(member)
     end
-  end
-
-  def resource_from_claims(_claims) do
-    {:error, :reason_for_error}
   end
 
   def check_member(%{data: %{inactive: true}}), do: {:error, :unauthorized}
