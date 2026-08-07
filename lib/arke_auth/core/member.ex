@@ -25,9 +25,9 @@ defmodule ArkeAuth.Core.Member do
   group id: "arke_auth_member" do
   end
 
-  before_write :sync_user_create, on: :create
-  before_write :sync_user_update, on: :update
-  after_write :delete_user, on: :delete
+  before_write(:sync_user_create, on: :create)
+  before_write(:sync_user_update, on: :update)
+  after_write(:delete_user, on: :delete)
 
   defp sync_user_create(%Hook{unit: %{data: %{arke_system_user: arke_system_user}} = unit} = hook)
        when is_map(arke_system_user) do

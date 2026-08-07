@@ -10,7 +10,7 @@ defmodule ArkeAuth.Test.ExplodingMember do
     parameter(:arke_system_user, :dynamic, required: true)
   end
 
-  after_write :explode, on: :create
+  after_write(:explode, on: :create)
 
   defp explode(_hook), do: {:error, [%{context: "member_test", message: "boom"}]}
 
