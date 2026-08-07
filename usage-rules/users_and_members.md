@@ -25,6 +25,10 @@
 
 - To link an existing User instead, pass its id as a binary:
   `arke_system_user: "user_id"`.
+- Member + User creation is atomic (arke ≥ 0.9.0): the inline User create
+  joins the member's transaction, so a failing member insert rolls the User
+  back — no orphaned `:arke_system` user occupying the username. On older
+  versions the orphan stays.
 - Passwords are hashed (bcrypt) in the `:user` Arke's `before_load` hook, which
   fires only on `:create`. Never write a user record through a path that
   bypasses `Arke.QueryManager.create/3`.
