@@ -5,7 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0-rc.0] - 2026-08-12
+
+### Breaking changes
+- `arke` is now required at `~> 0.9.0-rc`, which removes the pre-0.9 hook callbacks; the `ArkeAuth.Core.Member` group callbacks (`before_unit_load/3`, `on_unit_load/3`, `before_unit_validate/2`, `on_unit_validate/2`, `before_unit_create/2`, `on_unit_create/2`, `before_unit_update/2`, `before_unit_delete/2`, `on_unit_delete/2`) are removed in favour of the hook DSL; and Member plus User creation is atomic only when the persistence map registers a transaction seam, so add `transaction: &ArkePostgres.transaction/2` to `config :arke, persistence:` or a failing member insert will keep orphaning the `:arke_system` user. by @ilyichv in [#46](https://github.com/arkemis/arke-auth/pull/46)
+
+
+### Changed
+- Member hooks on the transactional pipeline by @ilyichv in [#46](https://github.com/arkemis/arke-auth/pull/46)
+- Run on maintenance branches by @ilyichv
+
 ## [0.6.0] - 2026-08-04
+
 
 ### Changed
 - Clear compiler warnings and gate on them in ci by @ilyichv in [#44](https://github.com/arkemis/arke-auth/pull/44)
@@ -14,11 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.0] - 2026-08-03
 
+
 ### Fixed
 - Bump bcrypt_elixir to 3.3 and guardian to 2.4 by @ilyichv in [#41](https://github.com/arkemis/arke-auth/pull/41)
 - Restore test suite by @ilyichv in [#40](https://github.com/arkemis/arke-auth/pull/40)
 
 ## [0.4.5] - 2026-07-30
+
 
 ### Changed
 - Usage rules by @ilyichv in [#39](https://github.com/arkemis/arke-auth/pull/39)
@@ -34,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.4] - 2026-04-14
 
+
 ### Added
 - Add git cliff by @ilyichv
 
@@ -43,10 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.3] - 2025-08-04
 
+
 ### Changed
 - Otp expiration in config by @ErikFerrari in [#27](https://github.com/arkemis/arke-auth/pull/27)
 
 ## [0.4.2] - 2025-07-01
+
 
 ### Added
 - Add configurable ttl for reset password token by @vittorio-reinaudo in [#25](https://github.com/arkemis/arke-auth/pull/25)
@@ -56,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0] - 2025-06-03
 
+
 ### Changed
 - Min arke version by @ErikFerrari
 
@@ -63,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gh action by @ErikFerrari in [#24](https://github.com/arkemis/arke-auth/pull/24)
 
 ## [0.3.5] - 2025-02-14
+
 
 ### Added
 - Added get_member function and permission check for impersonate by @Robbi-aka-Rob in [#22](https://github.com/arkemis/arke-auth/pull/22)
@@ -77,15 +95,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.4] - 2024-09-17
 
+
 ### Fixed
 - Manage member and member_id by @vittorio-reinaudo in [#20](https://github.com/arkemis/arke-auth/pull/20)
 
 ## [0.3.2] - 2024-06-26
 
+
 ### Changed
 - Align dev by @ErikFerrari in [#18](https://github.com/arkemis/arke-auth/pull/18)
 
 ## [0.3.1] - 2024-06-21
+
 
 ### Changed
 - Lowercase parameter in registry by @ErikFerrari in [#17](https://github.com/arkemis/arke-auth/pull/17)
@@ -96,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2024-04-23
 
+
 ### Changed
 - Set version to v0.3.0 by @ErikFerrari
 - Registry file by @ErikFerrari in [#12](https://github.com/arkemis/arke-auth/pull/12)
@@ -105,6 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.16] - 2024-03-06
 
+
 ### Changed
 - Set mix_version by @ErikFerrari
 - Inactive user ignored by @ErikFerrari in [#14](https://github.com/arkemis/arke-auth/pull/14)
@@ -112,40 +135,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.14] - 2023-12-22
 
+
 ### Changed
 - Improved opt management by @dorianmercatante
 
 ## [0.1.12] - 2023-12-14
+
 
 ### Changed
 - Return all member detail on signin by @dorianmercatante
 
 ## [0.1.11] - 2023-12-14
 
+
 ### Changed
 - Limited information data in access token by @dorianmercatante
 
 ## [0.1.10] - 2023-11-15
+
 
 ### Changed
 - Handled otp auth method by @dorianmercatante
 
 ## [0.1.9] - 2023-10-26
 
+
 ### Fixed
 - User arke now use before_struct_encode function by @dorianmercatante
 
 ## [0.1.8] - 2023-10-05
+
 
 ### Changed
 - Updated library version by @dorianmercatante
 
 ## [0.1.7] - 2023-09-26
 
+
 ### Changed
 - Handled permission for system arke by @dorianmercatante
 
 ## [0.1.6] - 2023-08-30
+
 
 ### Changed
 - Permission handler by @dorianmercatante
@@ -155,6 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.5] - 2023-08-30
 
+
 ### Changed
 - Set version to v0.1.5 by @ErikFerrari
 
@@ -162,6 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User arke now has email by @ErikFerrari in [#8](https://github.com/arkemis/arke-auth/pull/8)
 
 ## [0.1.4] - 2023-05-31
+
 
 ### Changed
 - Set version to 0.1.4 by @ilyichv
@@ -172,10 +205,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.3] - 2023-05-19
 
+
 ### Changed
 - Set version to 0.1.3 by @ilyichv
 
 ## [0.1.2] - 2023-05-19
+
 
 ### Changed
 - Set version to 0.1.2 by @ilyichv
@@ -188,6 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * @ilyichv made their first contribution
 * @ErikFerrari made their first contribution in [#2](https://github.com/arkemis/arke-auth/pull/2)
 
+[0.7.0-rc.0]: https://github.com/arkemis/arke-auth/compare/v0.6.0...v0.7.0-rc.0
 [0.6.0]: https://github.com/arkemis/arke-auth/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/arkemis/arke-auth/compare/v0.4.5...v0.5.0
 [0.4.5]: https://github.com/arkemis/arke-auth/compare/v0.4.4...v0.4.5
