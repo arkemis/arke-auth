@@ -1,6 +1,6 @@
 defmodule ArkeAuth.MixProject do
   use Mix.Project
-  @version "0.6.0"
+  @version "0.7.0-rc.0"
   @scm_url "https://github.com/arkemis/arke-auth"
   @site_url "https://arkehub.com"
 
