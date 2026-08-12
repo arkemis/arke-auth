@@ -29,6 +29,9 @@
   joins the member's transaction, so a failing member insert rolls the User
   back — no orphaned `:arke_system` user occupying the username. On older
   versions the orphan stays.
+- That atomicity requires `transaction: &ArkePostgres.transaction/2` in
+  `config :arke, persistence:`. Without it arke substitutes a pass-through and
+  the orphan comes back, silently.
 - Passwords are hashed (bcrypt) in the `:user` Arke's `before_load` hook, which
   fires only on `:create`. Never write a user record through a path that
   bypasses `Arke.QueryManager.create/3`.
