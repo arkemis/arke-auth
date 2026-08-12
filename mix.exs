@@ -53,7 +53,7 @@ defmodule ArkeAuth.MixProject do
       {:guardian, "~> 2.4"},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:arke, "~> 0.8.0"}
+      {:arke, "~> 0.9.0-rc.0"}
     ])
   end
 
