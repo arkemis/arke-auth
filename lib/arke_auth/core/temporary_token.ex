@@ -17,14 +17,20 @@ defmodule ArkeAuth.Core.TemporaryToken do
   Documentation for `TemporaryToken`.
   """
 
-  alias Arke.QueryManager
   alias Arke.Boundary.ArkeManager
+  alias Arke.QueryManager
 
   use Arke.System
 
   arke id: :temporary_token do
   end
 
+  @typedoc "Seconds, `%{days:, minutes:}`, or `nil` for the configured default."
+  @type duration :: nil | non_neg_integer() | String.t() | map()
+
+  @doc "Creates a token that expires after `duration`."
+  @spec generate_token(atom(), duration(), boolean(), keyword()) ::
+          {:ok, struct()} | {:error, term()}
   def generate_token(project, duration \\ nil, is_reusable \\ false, opts \\ []) do
     temp_arke = ArkeManager.get(:temporary_token, project)
     expiration_datetime = calculate_expiration_datetime(duration)
@@ -32,6 +38,9 @@ defmodule ArkeAuth.Core.TemporaryToken do
     QueryManager.create(project, temp_arke, data)
   end
 
+  @doc "Creates a token for `member` (unit or id) that expires after `duration`."
+  @spec generate_auth_token(atom(), term(), duration(), boolean(), keyword()) ::
+          {:ok, struct()} | {:error, term()}
   def generate_auth_token(project, member, duration \\ nil, is_reusable \\ false, opts \\ [])
 
   def generate_auth_token(project, member, duration, is_reusable, opts) when is_map(member),
@@ -55,11 +64,11 @@ defmodule ArkeAuth.Core.TemporaryToken do
         |> to_string()
       )
 
-  defp calculate_expiration_datetime(%{days: days}), do: add_from_now(days * 86400)
-  defp calculate_expiration_datetime(%{minutes: minutes}), do: add_from_now(minutes * 60)
-
   defp calculate_expiration_datetime(%{days: days, minutes: minutes}),
-    do: add_from_now(days * 86400 + minutes * 60)
+    do: add_from_now(days * 86_400 + minutes * 60)
+
+  defp calculate_expiration_datetime(%{days: days}), do: add_from_now(days * 86_400)
+  defp calculate_expiration_datetime(%{minutes: minutes}), do: add_from_now(minutes * 60)
 
   defp calculate_expiration_datetime(duration), do: add_from_now(duration)
 
