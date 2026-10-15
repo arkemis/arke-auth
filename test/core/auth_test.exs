@@ -33,7 +33,7 @@ defmodule AuthTest do
     end
 
     test "validate_credentials", %{member: member} = _context do
-      {:ok, updated_user, access_token, refresh_token} =
+      {:ok, updated_user, _access_token, _refresh_token} =
         Auth.validate_credentials("test", "password", :test_schema)
 
       assert updated_user.id == member.id
@@ -56,17 +56,17 @@ defmodule AuthTest do
     end
 
     test "refresh_tokens (error)" do
-      {:ok, user, access_token, refresh_token} =
+      {:ok, user, access_token, _refresh_token} =
         Auth.validate_credentials("test", "password", :test_schema)
 
       {:error, [%{context: _c, message: msg}]} = Auth.refresh_tokens(user, access_token)
-      assert assert msg == "invalid token"
+      assert msg == "invalid token"
     end
 
     test "change_password", %{user: user} = _context do
       Auth.change_password(user, "password", "new_password")
 
-      {:ok, %Arke.Core.Unit{} = updated_pwd_user, access_token, refresh_token} =
+      {:ok, %Arke.Core.Unit{}, _access_token, _refresh_token} =
         Auth.validate_credentials("test", "new_password", :test_schema)
 
       {:error, [%{context: _c, message: msg}]} =
