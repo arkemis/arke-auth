@@ -12,9 +12,8 @@
 - Member `arke_id`s and inline `arke_system_user` keys go through
   `String.to_existing_atom` — typos raise `ArgumentError` rather than
   returning a validation error. Validate input keys before calling.
-- Deleting a member whose user was already removed crashes in
-  `on_unit_delete` (nil user) — and the member row is already gone by then.
-  Delete users only through their members.
+- Delete users only through their members: a User deleted directly leaves its
+  Members dangling (they can no longer sign in).
 - Expect all auth errors in the canonical Arke error shape:
   `{:error, [%{context: "auth", message: "..."}]}` with string context.
 - The OTP manager GenServer is registered under the name

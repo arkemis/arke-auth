@@ -53,6 +53,6 @@
 - `Auth.update/2` silently strips `:password` and `:password_hash` from the
   update args and still returns `{:ok, ...}` — do not use it to change
   passwords.
-- **Deleting a Member deletes its User** (`on_unit_delete` cascades to
-  `:arke_system`), orphaning that User's Members in other projects. There is no
-  built-in guard — check for sibling members before deleting.
+- Deleting a Member unlinks it from its User. The User is deleted only when no
+  Member in any project (the `:arke_system` project, the deleted member's
+  project and every `:arke_project`) still references it.

@@ -111,6 +111,62 @@ defmodule ArkeAuth.Core.MemberTest do
     end
   end
 
+  describe "member delete (ARKE-AUTH-03)" do
+    setup do
+      register_project(:test_schema)
+      register_project(:other_schema)
+      :ok
+    end
+
+    test "keeps the user while another project still has a member for it", %{
+      user: user,
+      member: member
+    } do
+      _other_member = create_member(:other_schema, user)
+
+      {:ok, nil} = QueryManager.delete(:test_schema, member)
+
+      assert reload_user(user)
+      assert {:ok, _, _, _} = Auth.validate_credentials("member_owner", "password", :other_schema)
+      assert {:error, _} = Auth.validate_credentials("member_owner", "password", :test_schema)
+    end
+
+    test "keeps the user while the same project has another member for it", %{
+      user: user,
+      member: member
+    } do
+      _sibling = create_member(:test_schema, user)
+
+      {:ok, nil} = QueryManager.delete(:test_schema, member)
+
+      assert reload_user(user)
+    end
+
+    test "deletes the user with its last member", %{user: user, member: member} do
+      other_member = create_member(:other_schema, user)
+
+      {:ok, nil} = QueryManager.delete(:test_schema, member)
+      {:ok, nil} = QueryManager.delete(:other_schema, other_member)
+
+      assert reload_user(user) == nil
+    end
+
+    test "a member whose user is already gone still deletes", %{user: user, member: member} do
+      {:ok, nil} = QueryManager.delete(:arke_system, user)
+
+      assert {:ok, nil} = QueryManager.delete(:test_schema, member)
+      assert QueryManager.get_by(project: :test_schema, id: to_string(member.id)) == nil
+    end
+  end
+
+  defp register_project(id) do
+    {:ok, _} =
+      QueryManager.create(:arke_system, ArkeManager.get(:arke_project, :arke_system), %{
+        id: to_string(id),
+        label: to_string(id)
+      })
+  end
+
   defp create_user(username, email) do
     {:ok, user} =
       QueryManager.create(:arke_system, ArkeManager.get(:user, :arke_system), %{
