@@ -32,9 +32,10 @@
 - That atomicity requires `transaction: &ArkePostgres.transaction/2` in
   `config :arke, persistence:`. Without it arke substitutes a pass-through and
   the orphan comes back, silently.
-- Passwords are hashed (bcrypt) in the `:user` Arke's `before_load` hook, which
-  fires only on `:create`. Never write a user record through a path that
-  bypasses `Arke.QueryManager.create/3`.
+- Passwords are hashed (bcrypt) on `:create` (`before_load`) and on `:update`
+  (a `before_write` hook): pass the plain `password`, never a hash. An update
+  whose `password_hash` differs from the stored one is rejected with
+  `"password_hash cannot be set directly"`.
 - Change passwords ONLY via `Auth.change_password/3`, and resolve the User
   first — passing the member is wrong:
 
@@ -48,8 +49,9 @@
   {:ok, _} = ArkeAuth.Core.Auth.change_password(user, old_pwd, new_pwd)
   ```
 
-- `Auth.update/2` silently strips `:password` from the update args and still
-  returns `{:ok, ...}` — do not use it to change passwords.
+- `Auth.update/2` silently strips `:password` and `:password_hash` from the
+  update args and still returns `{:ok, ...}` — do not use it to change
+  passwords.
 - **Deleting a Member deletes its User** (`on_unit_delete` cascades to
   `:arke_system`), orphaning that User's Members in other projects. There is no
   built-in guard — check for sibling members before deleting.

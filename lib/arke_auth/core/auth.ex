@@ -50,13 +50,13 @@ defmodule ArkeAuth.Core.Auth do
     end
   end
 
-  defp check_password_data(data) when is_map(data) do
-    with true <- Map.has_key?(data, :password) do
-      Map.delete(data, :password)
-    else
-      _ -> data
-    end
-  end
+  # Credentials change only through change_password/3, which checks the old
+  # password first.
+  defp check_password_data(data) when is_map(data),
+    do: Map.drop(data, [:password, :password_hash, "password", "password_hash"])
+
+  defp check_password_data(data) when is_list(data),
+    do: data |> Enum.into(%{}) |> check_password_data()
 
   ######### CHECK PASSWORD #############
   @doc """
