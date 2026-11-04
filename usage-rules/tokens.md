@@ -52,5 +52,12 @@
     allowed_methods: %{get: true, post: false, put: false, delete: false}
   ```
 
-- There is no rate limiting on `validate_credentials/3`, `refresh_tokens/2` or
-  OTP generation — add throttling at the HTTP layer.
+- `validate_credentials/3` locks an account after `max_failed_logins`
+  (default 10) wrong passwords within `lockout_seconds` (default 900) of the
+  first; while locked every password, the right one included, returns
+  `"unauthorized"`. A success clears the count. Configure with
+  `config :arke_auth, ArkeAuth.Core.Auth, max_failed_logins: n, lockout_seconds: s`
+  (`max_failed_logins: false` disables it). Counters are node-local and reset
+  on restart.
+- There is no per-source rate limiting on `validate_credentials/3`,
+  `refresh_tokens/2` or OTP generation — add throttling at the HTTP layer.
