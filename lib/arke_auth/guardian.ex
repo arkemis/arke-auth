@@ -63,24 +63,34 @@ defmodule ArkeAuth.Guardian do
   end
 
   @doc """
-  Get from the token the resource
+  Get from the token the resource.
+
+  Only access tokens identify a resource: a refresh token (long-lived, meant
+  only for `ArkeAuth.Core.Auth.refresh_tokens/2`) is rejected, so it cannot be
+  presented as a bearer token.
   """
-  def resource_from_claims(claims) do
-    id = claims["sub"]["id"]
-    project = String.to_existing_atom(claims["sub"]["project"])
+  def resource_from_claims(%{"typ" => "access"} = claims), do: member_from_claims(claims)
+  def resource_from_claims(_claims), do: {:error, :invalid_token_type}
 
-    case Arke.QueryManager.get_by(project: project, group_id: "arke_auth_member", id: id) do
-      nil ->
-        {:error, :unauthorized}
-
-      member ->
-        check_member(member)
+  @doc false
+  # Resolves the member of any verified token, whatever its type. Callers must
+  # have checked the type themselves.
+  def member_from_claims(%{"sub" => %{"id" => id, "project" => project}})
+      when is_binary(id) and is_binary(project) do
+    case Arke.QueryManager.get_by(
+           project: String.to_existing_atom(project),
+           group_id: "arke_auth_member",
+           id: id
+         ) do
+      nil -> {:error, :unauthorized}
+      member -> check_member(member)
     end
+  rescue
+    # unknown project: no atom was ever created for it
+    ArgumentError -> {:error, :unauthorized}
   end
 
-  def resource_from_claims(_claims) do
-    {:error, :reason_for_error}
-  end
+  def member_from_claims(_claims), do: {:error, :unauthorized}
 
   def check_member(%{data: %{inactive: true}}), do: {:error, :unauthorized}
   def check_member(member), do: {:ok, member}
