@@ -25,6 +25,14 @@
 
 - To link an existing User instead, pass its id as a binary:
   `arke_system_user: "user_id"`.
+- Updating a Member with an inline `arke_system_user` map writes to the
+  **global** User, so it is restricted to an allow-list of profile fields
+  (default `[:first_name, :last_name, :phone_number]`, set with
+  `config :arke_auth, ArkeAuth.Core.Member, user_update_fields: [...]`).
+  `password` and `password_hash` can never be listed. Other fields fail the
+  update with `"arke_system_user.<field> cannot be updated"` unless they are
+  echoed back unchanged. A Member cannot be re-pointed at another User
+  (`"arke_system_user cannot be changed"`).
 - Passwords are hashed (bcrypt) on `:create` (`before_load`) and on `:update`
   (`before_update`): pass the plain `password`, never a hash. An update
   whose `password_hash` differs from the stored one is rejected with
