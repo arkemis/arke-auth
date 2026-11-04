@@ -40,6 +40,10 @@
 
 - `ArkeAuth.Core.TemporaryToken.generate_token(project, duration, is_reusable, opts)`
   and `generate_auth_token/4` for member-bound tokens.
+- The token's **id is its secret**: 32 random bytes, hex encoded (64 chars).
+  An `:id` passed in `opts` is ignored. Treat the id like a password: send it
+  in a request body or header rather than a query string, keep tokens
+  single-use (`is_reusable: false`, the default) and short-lived.
 - The default TTL applies only when `duration` is `nil` — `0` means zero
   seconds, not "use the default".
 - Duration maps support `%{days: d}` OR `%{minutes: m}` but NOT both:

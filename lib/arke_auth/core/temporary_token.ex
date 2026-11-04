@@ -25,10 +25,27 @@ defmodule ArkeAuth.Core.TemporaryToken do
   arke id: :temporary_token do
   end
 
+  # The token id is the bearer secret (it is what a magic link carries), so it
+  # must be unguessable. Arke's default id is a UUID v1 (timestamp + node), and
+  # consecutive ones are predictable; this is 256 bits from a CSPRNG instead.
+  @secret_bytes 32
+
+  @doc """
+  A fresh, unguessable temporary-token id: #{@secret_bytes} random bytes, hex
+  encoded.
+  """
+  @spec generate_secret() :: String.t()
+  def generate_secret(),
+    do: :crypto.strong_rand_bytes(@secret_bytes) |> Base.encode16(case: :lower)
+
   def generate_token(project, duration \\ nil, is_reusable \\ false, opts \\ []) do
     temp_arke = ArkeManager.get(:temporary_token, project)
     expiration_datetime = calculate_expiration_datetime(duration)
-    data = [expiration_datetime: expiration_datetime, is_reusable: is_reusable] ++ opts
+
+    data =
+      [id: generate_secret(), expiration_datetime: expiration_datetime, is_reusable: is_reusable] ++
+        Keyword.delete(opts, :id)
+
     QueryManager.create(project, temp_arke, data)
   end
 
@@ -42,8 +59,12 @@ defmodule ArkeAuth.Core.TemporaryToken do
     expiration_datetime = calculate_expiration_datetime(duration)
 
     data =
-      [link_member: member_id, expiration_datetime: expiration_datetime, is_reusable: is_reusable] ++
-        opts
+      [
+        id: generate_secret(),
+        link_member: member_id,
+        expiration_datetime: expiration_datetime,
+        is_reusable: is_reusable
+      ] ++ Keyword.delete(opts, :id)
 
     QueryManager.create(project, temp_arke, data)
   end
