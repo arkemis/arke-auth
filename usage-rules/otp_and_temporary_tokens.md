@@ -7,32 +7,28 @@
 - **Omit the 4th argument of `Otp.generate/4`** to get the configured TTL.
   Passing `nil` explicitly does NOT read the config — it falls back to a
   hardcoded 300 seconds.
-- OTP codes are 4-digit **strings** (`"1042"`). Compare with strings, never
-  integers:
+- OTP codes are 6-digit **strings** (`"042917"`) drawn from a CSPRNG. Set
+  `config :arke_auth, ArkeAuth.Otp, digits: n` for longer codes; values below 6
+  are raised to 6.
+- Verify with `ArkeAuth.Boundary.OtpManager.verify_code/4`, never by comparing
+  `otp.data.code` yourself. It compares in constant time, consumes the code on
+  success, and burns it after `max_attempts` (default 5) wrong guesses or on
+  expiry:
 
   ```elixir
-  # WRONG
-  otp_unit.data.code == 1042
-
-  # CORRECT
-  otp_unit.data.code == to_string(submitted_code)
-  ```
-
-- Verify expiry yourself and delete the code after use:
-
-  ```elixir
-  case ArkeAuth.Boundary.OtpManager.get_code(:my_project, member, "signin") do
-    nil -> :not_found
-    otp ->
-      with true <- otp.data.code == to_string(submitted),
-           :gt  <- NaiveDateTime.compare(otp.data.expiry_datetime, NaiveDateTime.utc_now()) do
-        ArkeAuth.Boundary.OtpManager.delete_otp(otp)
-        :ok
-      end
+  case ArkeAuth.Boundary.OtpManager.verify_code(:my_project, member, "signin", submitted) do
+    {:ok, _otp} -> :ok
+    {:error, [%{message: "otp expired"}]} -> :gone
+    {:error, [%{message: "too many attempts"}]} -> :locked
+    {:error, [%{message: "invalid otp"}]} -> :unauthorized
   end
   ```
 
-- `config :arke_auth, ArkeAuth.Otp, ttl: {n, unit}` accepts only `:seconds`,
+  For signup codes generated against a username, pass the username in place
+  of the member.
+- Attempt counters are node-local (ETS) and reset on restart; keep per-source
+  rate limiting at the HTTP layer as well.
+- `config :arke_auth, ArkeAuth.Otp, ttl: {n, unit}, max_attempts: n` — `ttl` accepts only `:seconds`,
   `:minutes`, `:days` — `:hours`/`:weeks` crash with `FunctionClauseError`.
 - There is no OTP bypass. The `OTP_BYPASS_CODE` environment variable was
   removed (it was a global backdoor clearing 2FA for every member) and is now

@@ -27,7 +27,7 @@ defmodule ArkeAuth.Core.Otp do
 
   def generate(project, id, action, expiry_datetime \\ get_expiry_datetime()) do
     otp_arke = ArkeManager.get(:otp, :arke_system)
-    code = Enum.random(1_000..9_999) |> Integer.to_string()
+    code = generate_code()
     id = parse_otp_id(action, id)
 
     case QueryManager.get_by(project: project, arke: otp_arke, id: id, action: action) do
@@ -48,8 +48,33 @@ defmodule ArkeAuth.Core.Otp do
 
   def parse_otp_id(action, id), do: "otp_#{action}_#{id}"
 
+  @min_digits 6
+
+  @doc """
+  A uniformly random numeric code of `digits` digits (default from
+  `config :arke_auth, ArkeAuth.Otp, digits: n`, at least #{@min_digits}), drawn
+  from a CSPRNG and returned as a zero-padded string.
+  """
+  @spec generate_code(pos_integer() | nil) :: String.t()
+  def generate_code(digits \\ nil) do
+    digits = max(digits || config(:digits, @min_digits), @min_digits)
+    space = Integer.pow(10, digits)
+
+    # 64 bits of entropy over a space of at most ~10^19 keeps the modulo bias
+    # negligible for any sensible number of digits.
+    :crypto.strong_rand_bytes(8)
+    |> :binary.decode_unsigned()
+    |> rem(space)
+    |> Integer.to_string()
+    |> String.pad_leading(digits, "0")
+  end
+
+  @doc false
+  def config(key, default),
+    do: Keyword.get(Application.get_env(:arke_auth, ArkeAuth.Otp, []), key, default)
+
   defp get_expiry_datetime() do
-    {value, unit} = Application.get_env(:arke_auth, ArkeAuth.Otp, [])[:ttl] || {5, :minutes}
+    {value, unit} = config(:ttl, nil) || {5, :minutes}
     seconds = convert_to_seconds(value, unit)
     NaiveDateTime.utc_now() |> NaiveDateTime.add(seconds, :second)
   end
