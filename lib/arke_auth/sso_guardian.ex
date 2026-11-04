@@ -26,7 +26,7 @@ defmodule ArkeAuth.SSOGuardian do
       id: to_string(user.id)
     }
 
-    sub = Map.merge(jwt_data, Map.drop(user.data, [:password_hash]))
+    sub = Map.merge(Map.drop(user.data, [:password_hash]), jwt_data)
     {:ok, sub}
   end
 

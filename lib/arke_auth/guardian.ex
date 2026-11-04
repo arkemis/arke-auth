@@ -54,7 +54,9 @@ defmodule ArkeAuth.Guardian do
       project: member.metadata.project
     }
 
-    sub = Map.merge(jwt_data, member.data)
+    # The trusted claims win: a member data field named `id` or `project` must
+    # not be able to re-point the token at another member or tenant.
+    sub = Map.merge(member.data, jwt_data)
     {:ok, sub}
   end
 
