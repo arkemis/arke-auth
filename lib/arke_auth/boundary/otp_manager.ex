@@ -25,25 +25,10 @@ defmodule ArkeAuth.Boundary.OtpManager do
   def get_code(project, member, action) when is_atom(action),
     do: get_code(project, member, to_string(action))
 
+  # There is deliberately no bypass here: a fixed, environment-wide code (the
+  # former `OTP_BYPASS_CODE`) cleared the second factor for every member of
+  # every project. Tests and app-store reviewers must receive a real code.
   def get_code(project, member, action) do
-    case System.get_env("OTP_BYPASS_CODE") do
-      nil ->
-        get_member_code(project, member, action)
-
-      "" ->
-        get_member_code(project, member, action)
-
-      value ->
-        %{
-          data: %{
-            code: value,
-            expiry_datetime: NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second)
-          }
-        }
-    end
-  end
-
-  defp get_member_code(project, member, action) do
     QueryManager.get_by(
       project: project,
       arke: "otp",
