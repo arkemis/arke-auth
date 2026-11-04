@@ -27,15 +27,11 @@ defmodule ArkeAuth.Boundary.OtpManager do
   def get_code(project, member, action) when is_atom(action),
     do: get_code(project, member, to_string(action))
 
-  # Actions the OTP_BYPASS_CODE never applies to: a password reset must be
-  # proven with the real code delivered to the account owner.
-  @bypass_excluded_actions ["reset_password"]
-
   # When OTP_BYPASS_CODE is set, it replaces the member's code for every action
-  # except the excluded ones, in every project. It is a deployment-wide second
-  # factor bypass: set it only where that is intended.
+  # in every project. It is a deployment-wide second factor bypass, meant for
+  # local development only.
   def get_code(project, member, action) do
-    case bypass_code(action) do
+    case bypass_code() do
       nil ->
         get_member_code(project, member, action)
 
@@ -53,9 +49,7 @@ defmodule ArkeAuth.Boundary.OtpManager do
     end
   end
 
-  defp bypass_code(action) when action in @bypass_excluded_actions, do: nil
-
-  defp bypass_code(_action) do
+  defp bypass_code() do
     case System.get_env("OTP_BYPASS_CODE") do
       nil -> nil
       "" -> nil

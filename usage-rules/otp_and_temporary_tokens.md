@@ -31,10 +31,9 @@
 - `config :arke_auth, ArkeAuth.Otp, ttl: {n, unit}, max_attempts: n` — `ttl` accepts only `:seconds`,
   `:minutes`, `:days` — `:hours`/`:weeks` crash with `FunctionClauseError`.
 - `OTP_BYPASS_CODE`, when set, replaces the code of every member in every
-  project for every action **except `reset_password`**, which always needs
-  the real code. `get_code/3` then returns a map with `bypass: true`, and the
-  real code is ignored. It clears the second factor deployment-wide: never set
-  it where that is not intended. Wrong guesses against it are still throttled
+  project for every action (`reset_password` included). `get_code/3` then
+  returns a map with `bypass: true`, and the real code is ignored. It clears
+  the second factor deployment-wide: set it only in local development. Wrong guesses against it are still throttled
   by `verify_code/4` (`max_attempts` per member and action every 5 minutes).
 - The `:otp` Arke is always resolved from `:arke_system` — it must exist there
   even when generating OTPs for other projects.
