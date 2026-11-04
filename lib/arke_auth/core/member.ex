@@ -127,11 +127,46 @@ defmodule ArkeAuth.Core.Member do
     |> Enum.map(&String.to_existing_atom/1)
   end
 
-  defp delete_user(%Hook{unit: unit} = hook) do
-    user =
-      QueryManager.get_by(project: :arke_system, arke_id: :user, id: unit.data.arke_system_user)
-
-    QueryManager.delete(:arke_system, user)
-    {:ok, hook}
+  # Deleting a member only unlinks it from its user. The user is global, so it
+  # is deleted only once no member in any project references it any more;
+  # otherwise removing someone from one project would destroy their account
+  # (and credentials) everywhere else.
+  defp delete_user(%Hook{unit: %{data: data} = unit, project: project} = hook) do
+    with user_id when not is_nil(user_id) <- Map.get(data, :arke_system_user),
+         user_id = to_string(user_id),
+         false <- referenced_by_other_member?(user_id, project, unit.id),
+         %Arke.Core.Unit{} = user <-
+           QueryManager.get_by(project: :arke_system, arke_id: :user, id: user_id),
+         {:ok, _} <- QueryManager.delete(:arke_system, user) do
+      {:ok, hook}
+    else
+      {:error, _} = error -> error
+      _ -> {:ok, hook}
+    end
   end
+
+  defp referenced_by_other_member?(user_id, deleted_project, deleted_id) do
+    Enum.any?(member_projects(deleted_project), fn project ->
+      QueryManager.filter_by(
+        project: project,
+        group_id: "arke_auth_member",
+        arke_system_user: user_id
+      )
+      |> Enum.any?(fn member ->
+        not (project == deleted_project and to_string(member.id) == to_string(deleted_id))
+      end)
+    end)
+  end
+
+  defp member_projects(current_project) do
+    projects =
+      QueryManager.filter_by(project: :arke_system, arke: :arke_project)
+      |> Enum.map(fn %{id: id} -> to_project(id) end)
+
+    Enum.uniq([:arke_system, current_project | projects])
+  end
+
+  # Project ids come from the :arke_system project table, not from requests.
+  defp to_project(id) when is_atom(id), do: id
+  defp to_project(id), do: String.to_atom(to_string(id))
 end
