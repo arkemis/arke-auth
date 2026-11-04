@@ -113,6 +113,15 @@ defmodule AuthTest do
                ArkeAuth.SSOGuardian.resource_from_token(refresh_token)
     end
 
+    test "member data cannot override the id or project claims", %{member: member} do
+      forged = %{member | data: Map.merge(member.data, %{id: "other", project: "arke_system"})}
+
+      {:ok, %{id: id, project: project}} = ArkeAuth.Guardian.subject_for_token(forged, %{})
+
+      assert id == to_string(member.id)
+      assert project == :test_schema
+    end
+
     test "change_password", %{user: user} = _context do
       Auth.change_password(user, "password", "new_password")
 
