@@ -23,3 +23,9 @@ config :arke_auth, ArkeAuth.Guardian,
   secret_key: "5hyuhkszkm8jilkDxrXGTBz1z1KJk5dtVwLgLOXHQRsPEtxii3wFcAbx4Gtj1aQB",
   verify_issuer: true,
   token_ttl: %{"access" => {7, :days}, "refresh" => {30, :days}}
+
+config :arke_auth, ArkeAuth.SSOGuardian,
+  issuer: "arke_auth",
+  secret_key: "Wd0e9tYyb7r8JgQv1L3mZ5pS2kH6nX4cA0fT7uE9iR3oP1sD8gV2jB5qN6wM4yC7",
+  verify_issuer: true,
+  token_ttl: %{"access" => {7, :days}, "refresh" => {30, :days}}

@@ -171,32 +171,40 @@ defmodule ArkeAuth.Core.Auth do
   defp get_guardian_module(_), do: Guardian
 
   @doc """
-  Create new access_token and refresh_token exchanging the user refresh token
+  Create new access_token and refresh_token exchanging a refresh token.
+
+  The member is resolved from the refresh token itself (and must still exist
+  and be active); the first argument is ignored and kept for compatibility.
+  Access tokens are rejected.
 
   ## Parameter
-    - user => %Arke.Core.Unit{} => the unit struct representing the user
+    - _member => ignored
     - token => the refresh_token to exchange
 
   ## Returns
       {:ok, access_token, refresh_token}
       {:error, msg}
   """
-  @spec refresh_tokens(user :: Arke.Core.Unit.t(), token :: String.t()) ::
+  @spec refresh_tokens(member :: Arke.Core.Unit.t() | nil, token :: String.t()) ::
           {:ok, new_token :: String.t(), refresh_token :: String.t()}
           | Arke.Utils.ErrorGenerator.t()
-  def refresh_tokens(user, token) do
-    case Guardian.decode_and_verify(token, %{"typ" => "refresh"}) do
-      {:ok, _} ->
-        with {:ok, _old_stuff, {new_token, _new_claims}} <-
-               Guardian.exchange(token, "refresh", "access"),
-             {:ok, refresh_token} <- create_refresh_token(user, "default") do
-          {:ok, new_token, refresh_token}
-        end
+  def refresh_tokens(_member, token), do: refresh_tokens(token)
 
-      _ ->
-        Error.create(:auth, "invalid token")
+  @spec refresh_tokens(token :: String.t()) ::
+          {:ok, new_token :: String.t(), refresh_token :: String.t()}
+          | Arke.Utils.ErrorGenerator.t()
+  def refresh_tokens(token) when is_binary(token) do
+    with {:ok, claims} <- Guardian.decode_and_verify(token, %{"typ" => "refresh"}),
+         {:ok, member} <- Guardian.member_from_claims(claims),
+         {:ok, _resource, access_token, refresh_token} <- create_tokens(format_member(member)) do
+      {:ok, access_token, refresh_token}
+    else
+      {:error, [%{context: _} | _]} = error -> error
+      _ -> Error.create(:auth, "invalid token")
     end
   end
+
+  def refresh_tokens(_token), do: Error.create(:auth, "invalid token")
 
   #### JWT MANAGEMENT END #####
 

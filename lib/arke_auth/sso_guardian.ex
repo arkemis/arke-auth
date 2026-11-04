@@ -31,9 +31,10 @@ defmodule ArkeAuth.SSOGuardian do
   end
 
   @doc """
-  Get from the token the resource
+  Get from the token the resource. Only access tokens identify a resource;
+  refresh tokens are rejected.
   """
-  def resource_from_claims(claims) do
+  def resource_from_claims(%{"typ" => "access"} = claims) do
     id = claims["sub"]["id"]
 
     case Arke.QueryManager.get_by(project: :arke_system, arke_id: :user, id: id) do
@@ -45,4 +46,6 @@ defmodule ArkeAuth.SSOGuardian do
         {:ok, user}
     end
   end
+
+  def resource_from_claims(_claims), do: {:error, :invalid_token_type}
 end

@@ -63,6 +63,62 @@ defmodule AuthTest do
       assert assert msg == "invalid token"
     end
 
+    test "a refresh token does not resolve a resource (ARKE-AUTH-04)" do
+      {:ok, member, access_token, refresh_token} =
+        Auth.validate_credentials("test", "password", :test_schema)
+
+      assert {:ok, resource, _claims} = ArkeAuth.Guardian.resource_from_token(access_token)
+      assert resource.id == member.id
+
+      assert {:error, :invalid_token_type} =
+               ArkeAuth.Guardian.resource_from_token(refresh_token)
+    end
+
+    test "refresh_tokens resolves the member from the refresh token alone" do
+      {:ok, member, _access_token, refresh_token} =
+        Auth.validate_credentials("test", "password", :test_schema)
+
+      {:ok, new_access_token, new_refresh_token} = Auth.refresh_tokens(nil, refresh_token)
+
+      assert {:ok, resource, %{"typ" => "access"}} =
+               ArkeAuth.Guardian.resource_from_token(new_access_token)
+
+      assert resource.id == member.id
+
+      assert {:ok, %{"typ" => "refresh"}} =
+               ArkeAuth.Guardian.decode_and_verify(new_refresh_token)
+    end
+
+    test "refresh_tokens ignores the caller's member", %{user: user} do
+      {:ok, member, _access_token, refresh_token} =
+        Auth.validate_credentials("test", "password", :test_schema)
+
+      other = %{member | id: :someone_else}
+      {:ok, _access, new_refresh_token} = Auth.refresh_tokens(other, refresh_token)
+
+      {:ok, %{"sub" => %{"id" => id}}} = ArkeAuth.Guardian.decode_and_verify(new_refresh_token)
+      assert id == to_string(member.id)
+      assert user
+    end
+
+    test "refresh_tokens rejects a refresh token of an inactive member", %{member: member} do
+      {:ok, _member, _access_token, refresh_token} =
+        Auth.validate_credentials("test", "password", :test_schema)
+
+      {:ok, _} = QueryManager.update(member, inactive: true)
+
+      assert {:error, [%{message: "invalid token"}]} = Auth.refresh_tokens(nil, refresh_token)
+    end
+
+    test "SSO refresh tokens do not resolve a resource", %{user: user} do
+      {:ok, _user, access_token, refresh_token} = Auth.create_tokens(user, "sso")
+
+      assert {:ok, _user, _claims} = ArkeAuth.SSOGuardian.resource_from_token(access_token)
+
+      assert {:error, :invalid_token_type} =
+               ArkeAuth.SSOGuardian.resource_from_token(refresh_token)
+    end
+
     test "change_password", %{user: user} = _context do
       Auth.change_password(user, "password", "new_password")
 
