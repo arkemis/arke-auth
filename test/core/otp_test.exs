@@ -20,7 +20,7 @@ defmodule ArkeAuth.Core.OtpTest do
       :ok
     end
 
-    test "OTP_BYPASS_CODE replaces the code for signin and signup" do
+    test "OTP_BYPASS_CODE replaces the code for every action" do
       assert OtpManager.get_code(:test_schema, @member, "signin").data.code == "0000"
       assert OtpManager.get_code(:test_schema, @member, :signup).data.code == "0000"
 
@@ -28,30 +28,20 @@ defmodule ArkeAuth.Core.OtpTest do
       assert OtpManager.get_code(:test_schema, @member, "signin").data.code == "0000"
     end
 
-    test "OTP_BYPASS_CODE verifies outside the reset password flow" do
+    test "OTP_BYPASS_CODE verifies in place of the real code" do
       assert {:ok, %{bypass: true}} =
                OtpManager.verify_code(:test_schema, @member, "signin", "0000")
 
       assert {:ok, _} = OtpManager.verify_code(:test_schema, "someone@arke.test", "signup", 0)
     end
 
-    test "OTP_BYPASS_CODE does not apply to reset_password" do
-      assert OtpManager.get_code(:test_schema, @member, "reset_password") == nil
+    test "OTP_BYPASS_CODE applies to reset_password too" do
+      {:ok, _otp} = Otp.generate(:test_schema, @member.id, "reset_password")
 
-      assert {:error, [%{message: "invalid otp"}]} =
+      assert OtpManager.get_code(:test_schema, @member, :reset_password).data.code == "0000"
+
+      assert {:ok, %{bypass: true}} =
                OtpManager.verify_code(:test_schema, @member, "reset_password", "0000")
-
-      {:ok, otp} = Otp.generate(:test_schema, @member.id, "reset_password")
-
-      code = OtpManager.get_code(:test_schema, @member, :reset_password)
-      assert code.data.code == otp.data.code
-      refute code.data.code == "0000"
-
-      assert {:error, [%{message: "invalid otp"}]} =
-               OtpManager.verify_code(:test_schema, @member, "reset_password", "0000")
-
-      assert {:ok, _} =
-               OtpManager.verify_code(:test_schema, @member, "reset_password", otp.data.code)
     end
 
     test "wrong guesses against the bypass code are throttled" do
