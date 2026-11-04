@@ -27,10 +27,43 @@ defmodule ArkeAuth.Boundary.OtpManager do
   def get_code(project, member, action) when is_atom(action),
     do: get_code(project, member, to_string(action))
 
-  # There is deliberately no bypass here: a fixed, environment-wide code (the
-  # former `OTP_BYPASS_CODE`) cleared the second factor for every member of
-  # every project. Tests and app-store reviewers must receive a real code.
+  # Actions the OTP_BYPASS_CODE never applies to: a password reset must be
+  # proven with the real code delivered to the account owner.
+  @bypass_excluded_actions ["reset_password"]
+
+  # When OTP_BYPASS_CODE is set, it replaces the member's code for every action
+  # except the excluded ones, in every project. It is a deployment-wide second
+  # factor bypass: set it only where that is intended.
   def get_code(project, member, action) do
+    case bypass_code(action) do
+      nil ->
+        get_member_code(project, member, action)
+
+      code ->
+        %{
+          id: Otp.parse_otp_id(action, member.id),
+          metadata: %{project: project},
+          bypass: true,
+          data: %{
+            code: code,
+            action: action,
+            expiry_datetime: NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second)
+          }
+        }
+    end
+  end
+
+  defp bypass_code(action) when action in @bypass_excluded_actions, do: nil
+
+  defp bypass_code(_action) do
+    case System.get_env("OTP_BYPASS_CODE") do
+      nil -> nil
+      "" -> nil
+      code -> code
+    end
+  end
+
+  defp get_member_code(project, member, action) do
     QueryManager.get_by(
       project: project,
       arke: "otp",
@@ -82,7 +115,7 @@ defmodule ArkeAuth.Boundary.OtpManager do
         Error.create(:auth, "otp expired")
 
       AttemptLimiter.count(key) >= max_attempts() ->
-        discard(otp, key)
+        delete_otp(otp)
         Error.create(:auth, "too many attempts")
 
       secure_compare(to_string(otp.data.code), normalize(submitted, otp.data.code)) ->
@@ -90,7 +123,7 @@ defmodule ArkeAuth.Boundary.OtpManager do
         {:ok, otp}
 
       AttemptLimiter.hit(key, seconds_left(expiry)) >= max_attempts() ->
-        discard(otp, key)
+        delete_otp(otp)
         Error.create(:auth, "too many attempts")
 
       true ->
@@ -103,8 +136,13 @@ defmodule ArkeAuth.Boundary.OtpManager do
     delete_otp(otp)
   end
 
-  # Regenerating a code replaces its value and expiry, so it opens a fresh
-  # attempt window; only a digest of the code is kept in the key.
+  # The bypass code never changes, so its window is per member and action and
+  # is left to expire on its own once locked (not reset), throttling guesses.
+  # A real code is deleted once locked; regenerating replaces its value and
+  # expiry, so it opens a fresh window. Only a digest of the code is kept.
+  defp attempts_key(%{bypass: true, id: id, metadata: %{project: project}}),
+    do: {:otp_bypass, project, to_string(id)}
+
   defp attempts_key(%{id: id, metadata: metadata, data: %{code: code, expiry_datetime: expiry}}),
     do:
       {:otp, Map.get(metadata || %{}, :project), to_string(id),

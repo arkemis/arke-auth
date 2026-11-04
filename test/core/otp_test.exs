@@ -2,7 +2,7 @@ defmodule ArkeAuth.Core.OtpTest do
   use ArkeAuth.RepoCase
 
   alias ArkeAuth.Core.Otp
-  alias ArkeAuth.Boundary.OtpManager
+  alias ArkeAuth.Boundary.{AttemptLimiter, OtpManager}
 
   @member %{id: :otp_test_member}
 
@@ -20,16 +20,57 @@ defmodule ArkeAuth.Core.OtpTest do
       :ok
     end
 
-    test "OTP_BYPASS_CODE no longer forges a code for a member without one" do
-      assert OtpManager.get_code(:test_schema, @member, "signin") == nil
+    test "OTP_BYPASS_CODE replaces the code for signin and signup" do
+      assert OtpManager.get_code(:test_schema, @member, "signin").data.code == "0000"
+      assert OtpManager.get_code(:test_schema, @member, :signup).data.code == "0000"
+
+      {:ok, _otp} = Otp.generate(:test_schema, @member.id, "signin")
+      assert OtpManager.get_code(:test_schema, @member, "signin").data.code == "0000"
     end
 
-    test "OTP_BYPASS_CODE does not replace the member's real code" do
-      {:ok, otp} = Otp.generate(:test_schema, @member.id, "signin")
+    test "OTP_BYPASS_CODE verifies outside the reset password flow" do
+      assert {:ok, %{bypass: true}} =
+               OtpManager.verify_code(:test_schema, @member, "signin", "0000")
 
-      code = OtpManager.get_code(:test_schema, @member, "signin")
+      assert {:ok, _} = OtpManager.verify_code(:test_schema, "someone@arke.test", "signup", 0)
+    end
+
+    test "OTP_BYPASS_CODE does not apply to reset_password" do
+      assert OtpManager.get_code(:test_schema, @member, "reset_password") == nil
+
+      assert {:error, [%{message: "invalid otp"}]} =
+               OtpManager.verify_code(:test_schema, @member, "reset_password", "0000")
+
+      {:ok, otp} = Otp.generate(:test_schema, @member.id, "reset_password")
+
+      code = OtpManager.get_code(:test_schema, @member, :reset_password)
       assert code.data.code == otp.data.code
       refute code.data.code == "0000"
+
+      assert {:error, [%{message: "invalid otp"}]} =
+               OtpManager.verify_code(:test_schema, @member, "reset_password", "0000")
+
+      assert {:ok, _} =
+               OtpManager.verify_code(:test_schema, @member, "reset_password", otp.data.code)
+    end
+
+    test "wrong guesses against the bypass code are throttled" do
+      member = %{id: :bypass_brute}
+
+      on_exit(fn ->
+        AttemptLimiter.reset({:otp_bypass, :test_schema, "otp_signin_bypass_brute"})
+      end)
+
+      for _ <- 1..4 do
+        assert {:error, [%{message: "invalid otp"}]} =
+                 OtpManager.verify_code(:test_schema, member, "signin", "9999")
+      end
+
+      assert {:error, [%{message: "too many attempts"}]} =
+               OtpManager.verify_code(:test_schema, member, "signin", "9999")
+
+      assert {:error, [%{message: "too many attempts"}]} =
+               OtpManager.verify_code(:test_schema, member, "signin", "0000")
     end
   end
 

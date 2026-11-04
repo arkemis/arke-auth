@@ -30,9 +30,12 @@
   rate limiting at the HTTP layer as well.
 - `config :arke_auth, ArkeAuth.Otp, ttl: {n, unit}, max_attempts: n` — `ttl` accepts only `:seconds`,
   `:minutes`, `:days` — `:hours`/`:weeks` crash with `FunctionClauseError`.
-- There is no OTP bypass. The `OTP_BYPASS_CODE` environment variable was
-  removed (it was a global backdoor clearing 2FA for every member) and is now
-  ignored.
+- `OTP_BYPASS_CODE`, when set, replaces the code of every member in every
+  project for every action **except `reset_password`**, which always needs
+  the real code. `get_code/3` then returns a map with `bypass: true`, and the
+  real code is ignored. It clears the second factor deployment-wide: never set
+  it where that is not intended. Wrong guesses against it are still throttled
+  by `verify_code/4` (`max_attempts` per member and action every 5 minutes).
 - The `:otp` Arke is always resolved from `:arke_system` — it must exist there
   even when generating OTPs for other projects.
 
