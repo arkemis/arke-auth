@@ -34,8 +34,9 @@
 
 - `config :arke_auth, ArkeAuth.Otp, ttl: {n, unit}` accepts only `:seconds`,
   `:minutes`, `:days` — `:hours`/`:weeks` crash with `FunctionClauseError`.
-- `OTP_BYPASS_CODE` is a GLOBAL bypass (all projects, all actions, all
-  members). Never set it outside test/dev environments.
+- There is no OTP bypass. The `OTP_BYPASS_CODE` environment variable was
+  removed (it was a global backdoor clearing 2FA for every member) and is now
+  ignored.
 - The `:otp` Arke is always resolved from `:arke_system` — it must exist there
   even when generating OTPs for other projects.
 
