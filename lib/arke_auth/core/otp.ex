@@ -48,7 +48,7 @@ defmodule ArkeAuth.Core.Otp do
 
   def parse_otp_id(action, id), do: "otp_#{action}_#{id}"
 
-  @min_digits 6
+  @min_digits 4
 
   @doc """
   A uniformly random numeric code of `digits` digits (default from

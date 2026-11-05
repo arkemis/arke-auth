@@ -65,21 +65,21 @@ defmodule ArkeAuth.Core.OtpTest do
   end
 
   describe "Otp.generate_code/1" do
-    test "codes are six-digit numeric strings by default" do
+    test "codes are four-digit numeric strings by default" do
       for _ <- 1..200 do
         code = Otp.generate_code()
-        assert code =~ ~r/^\d{6}$/
+        assert code =~ ~r/^\d{4}$/
       end
     end
 
-    test "fewer than six digits cannot be requested" do
-      assert String.length(Otp.generate_code(4)) == 6
-      assert String.length(Otp.generate_code(8)) == 8
+    test "fewer than four digits cannot be requested" do
+      assert String.length(Otp.generate_code(2)) == 4
+      assert String.length(Otp.generate_code(6)) == 6
     end
 
-    test "generate/3 stores a six-digit code" do
+    test "generate/3 stores a four-digit code" do
       {:ok, otp} = Otp.generate(:test_schema, :gen_member, "signin")
-      assert otp.data.code =~ ~r/^\d{6}$/
+      assert otp.data.code =~ ~r/^\d{4}$/
     end
   end
 
@@ -110,9 +110,9 @@ defmodule ArkeAuth.Core.OtpTest do
 
     test "an integer submission keeps the code's leading zeros" do
       {:ok, otp} = Otp.generate(:test_schema, :verify_zero, "signin")
-      {:ok, otp} = QueryManager.update(otp, code: "004217")
+      {:ok, otp} = QueryManager.update(otp, code: "0042")
 
-      assert {:ok, _} = OtpManager.verify_code(:test_schema, %{id: :verify_zero}, "signin", 4217)
+      assert {:ok, _} = OtpManager.verify_code(:test_schema, %{id: :verify_zero}, "signin", 42)
     end
 
     test "a raw id (signup by username) is accepted" do
@@ -183,16 +183,18 @@ defmodule ArkeAuth.Core.OtpTest do
 
     test "no code means invalid" do
       assert {:error, [%{message: "invalid otp"}]} =
-               OtpManager.verify_code(:test_schema, %{id: :verify_none}, "signin", "123456")
+               OtpManager.verify_code(:test_schema, %{id: :verify_none}, "signin", "1234")
     end
   end
 
   defp wrong(%{data: %{code: code}}) do
+    digits = String.length(code)
+
     code
     |> String.to_integer()
     |> Kernel.+(1)
-    |> rem(1_000_000)
+    |> rem(Integer.pow(10, digits))
     |> Integer.to_string()
-    |> String.pad_leading(6, "0")
+    |> String.pad_leading(digits, "0")
   end
 end
