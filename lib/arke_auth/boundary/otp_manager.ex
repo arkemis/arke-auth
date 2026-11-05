@@ -20,21 +20,40 @@ defmodule ArkeAuth.Boundary.OtpManager do
 
   manager_id(:otp)
 
-  def get_code(project, member,action \\ "signin")
-  def get_code(project, member,action) when is_atom(action), do: get_code(project, member,to_string(action))
-  def get_code(project, member,action) do
+  def get_code(project, member, action \\ "signin")
+
+  def get_code(project, member, action) when is_atom(action),
+    do: get_code(project, member, to_string(action))
+
+  def get_code(project, member, action) do
     case System.get_env("OTP_BYPASS_CODE") do
-      nil -> get_member_code(project,member,action)
-      "" ->  get_member_code(project,member,action)
-      value -> %{data: %{code: value, expiry_datetime: NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second) }}
+      nil ->
+        get_member_code(project, member, action)
+
+      "" ->
+        get_member_code(project, member, action)
+
+      value ->
+        %{
+          data: %{
+            code: value,
+            expiry_datetime: NaiveDateTime.utc_now() |> NaiveDateTime.add(300, :second)
+          }
+        }
     end
   end
 
-  defp get_member_code(project,member,action) do
-    QueryManager.get_by(project: project,arke: "otp",id: Otp.parse_otp_id(action, member.id),action: action)
+  defp get_member_code(project, member, action) do
+    QueryManager.get_by(
+      project: project,
+      arke: "otp",
+      id: Otp.parse_otp_id(action, member.id),
+      action: action
+    )
   end
 
-  def delete_otp(%Arke.Core.Unit{metadata: %{project: project}}=unit), do:   QueryManager.delete(project, unit)
-  def delete_otp(_unit), do:  nil
+  def delete_otp(%Arke.Core.Unit{metadata: %{project: project}} = unit),
+    do: QueryManager.delete(project, unit)
 
+  def delete_otp(_unit), do: nil
 end
