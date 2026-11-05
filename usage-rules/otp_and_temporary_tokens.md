@@ -7,9 +7,9 @@
 - **Omit the 4th argument of `Otp.generate/4`** to get the configured TTL.
   Passing `nil` explicitly does NOT read the config — it falls back to a
   hardcoded 300 seconds.
-- OTP codes are 6-digit **strings** (`"042917"`) drawn from a CSPRNG. Set
-  `config :arke_auth, ArkeAuth.Otp, digits: n` for longer codes; values below 6
-  are raised to 6.
+- OTP codes are 4-digit **strings** (`"0429"`) drawn from a CSPRNG. Set
+  `config :arke_auth, ArkeAuth.Otp, digits: n` for longer codes; values below 4
+  are raised to 4.
 - Verify with `ArkeAuth.Boundary.OtpManager.verify_code/4`, never by comparing
   `otp.data.code` yourself. It compares in constant time, consumes the code on
   success, and burns it after `max_attempts` (default 5) wrong guesses or on
