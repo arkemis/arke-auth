@@ -25,9 +25,18 @@
 
 - To link an existing User instead, pass its id as a binary:
   `arke_system_user: "user_id"`.
-- Passwords are hashed (bcrypt) in the `:user` Arke's `before_load` hook, which
-  fires only on `:create`. Never write a user record through a path that
-  bypasses `Arke.QueryManager.create/3`.
+- Updating a Member with an inline `arke_system_user` map writes to the
+  **global** User, so it is restricted to an allow-list of profile fields
+  (default `[:first_name, :last_name, :phone_number]`, set with
+  `config :arke_auth, ArkeAuth.Core.Member, user_update_fields: [...]`).
+  `password` and `password_hash` can never be listed. Other fields fail the
+  update with `"arke_system_user.<field> cannot be updated"` unless they are
+  echoed back unchanged. A Member cannot be re-pointed at another User
+  (`"arke_system_user cannot be changed"`).
+- Passwords are hashed (bcrypt) on `:create` (`before_load`) and on `:update`
+  (`before_update`): pass the plain `password`, never a hash. An update
+  whose `password_hash` differs from the stored one is rejected with
+  `"password_hash cannot be set directly"`.
 - Change passwords ONLY via `Auth.change_password/3`, and resolve the User
   first — passing the member is wrong:
 
@@ -41,8 +50,9 @@
   {:ok, _} = ArkeAuth.Core.Auth.change_password(user, old_pwd, new_pwd)
   ```
 
-- `Auth.update/2` silently strips `:password` from the update args and still
-  returns `{:ok, ...}` — do not use it to change passwords.
-- **Deleting a Member deletes its User** (`on_unit_delete` cascades to
-  `:arke_system`), orphaning that User's Members in other projects. There is no
-  built-in guard — check for sibling members before deleting.
+- `Auth.update/2` silently strips `:password` and `:password_hash` from the
+  update args and still returns `{:ok, ...}` — do not use it to change
+  passwords.
+- Deleting a Member unlinks it from its User. The User is deleted only when no
+  Member in any project (the `:arke_system` project, the deleted member's
+  project and every `:arke_project`) still references it.

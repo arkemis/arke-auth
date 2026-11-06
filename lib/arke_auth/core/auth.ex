@@ -20,6 +20,7 @@ defmodule ArkeAuth.Core.Auth do
   alias Arke.QueryManager
   alias ArkeAuth.Core.User
   alias ArkeAuth.{Guardian, SSOGuardian}
+  alias ArkeAuth.Boundary.AttemptLimiter
   alias Arke.Utils.ErrorGenerator, as: Error
 
   # todo: add method to validate sso
@@ -50,13 +51,13 @@ defmodule ArkeAuth.Core.Auth do
     end
   end
 
-  defp check_password_data(data) when is_map(data) do
-    with true <- Map.has_key?(data, :password) do
-      Map.delete(data, :password)
-    else
-      _ -> data
-    end
-  end
+  # Credentials change only through change_password/3, which checks the old
+  # password first.
+  defp check_password_data(data) when is_map(data),
+    do: Map.drop(data, [:password, :password_hash, "password", "password_hash"])
+
+  defp check_password_data(data) when is_list(data),
+    do: data |> Enum.into(%{}) |> check_password_data()
 
   ######### CHECK PASSWORD #############
   @doc """
@@ -75,7 +76,7 @@ defmodule ArkeAuth.Core.Auth do
   @spec validate_credentials(username :: String.t(), password :: String.t(), project :: atom()) ::
           {:ok, Arke.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def validate_credentials(username, password, project \\ :arke_system) do
-    case email_password_auth(username, password, :arke_system) do
+    case throttled_password_auth(username, password) do
       {:ok, user} ->
         case get_project_member(project, user) do
           {:ok, member} ->
@@ -94,6 +95,58 @@ defmodule ArkeAuth.Core.Auth do
   defp email_password_auth(username, password, project)
        when is_binary(username) and is_binary(password) do
     with {:ok, user} <- get_by_username(username, project), do: verify_password(password, user)
+  end
+
+  defp email_password_auth(_username, _password, _project), do: Error.create(:auth, "login error")
+
+  @default_max_failed_logins 10
+  @default_lockout_seconds 900
+
+  # Per-account lockout: after `max_failed_logins` wrong passwords within
+  # `lockout_seconds` of the first one, the account refuses every password
+  # (the right one included) until the window closes. A success clears the
+  # count. Unknown usernames are counted too, so a lock reveals nothing.
+  # Counters are node-local; see ArkeAuth.Boundary.AttemptLimiter.
+  defp throttled_password_auth(username, password) do
+    case lockout_config() do
+      nil ->
+        email_password_auth(username, password, :arke_system)
+
+      {max_failures, window} ->
+        key = {:login, login_key(username)}
+
+        if AttemptLimiter.count(key) >= max_failures do
+          Bcrypt.no_user_verify()
+          Error.create(:auth, "login error")
+        else
+          case email_password_auth(username, password, :arke_system) do
+            {:ok, _user} = ok ->
+              AttemptLimiter.reset(key)
+              ok
+
+            error ->
+              AttemptLimiter.hit(key, window)
+              error
+          end
+        end
+    end
+  end
+
+  defp login_key(username) when is_binary(username),
+    do: username |> String.trim() |> String.downcase()
+
+  defp login_key(username), do: inspect(username)
+
+  defp lockout_config() do
+    config = Application.get_env(:arke_auth, __MODULE__, [])
+
+    case Keyword.get(config, :max_failed_logins, @default_max_failed_logins) do
+      max when is_integer(max) and max > 0 ->
+        {max, Keyword.get(config, :lockout_seconds, @default_lockout_seconds)}
+
+      _disabled ->
+        nil
+    end
   end
 
   def get_project_member(project, user) do
@@ -171,32 +224,40 @@ defmodule ArkeAuth.Core.Auth do
   defp get_guardian_module(_), do: Guardian
 
   @doc """
-  Create new access_token and refresh_token exchanging the user refresh token
+  Create new access_token and refresh_token exchanging a refresh token.
+
+  The member is resolved from the refresh token itself (and must still exist
+  and be active); the first argument is ignored and kept for compatibility.
+  Access tokens are rejected.
 
   ## Parameter
-    - user => %Arke.Core.Unit{} => the unit struct representing the user
+    - _member => ignored
     - token => the refresh_token to exchange
 
   ## Returns
       {:ok, access_token, refresh_token}
       {:error, msg}
   """
-  @spec refresh_tokens(user :: Arke.Core.Unit.t(), token :: String.t()) ::
+  @spec refresh_tokens(member :: Arke.Core.Unit.t() | nil, token :: String.t()) ::
           {:ok, new_token :: String.t(), refresh_token :: String.t()}
           | Arke.Utils.ErrorGenerator.t()
-  def refresh_tokens(user, token) do
-    case Guardian.decode_and_verify(token, %{"typ" => "refresh"}) do
-      {:ok, _} ->
-        with {:ok, _old_stuff, {new_token, _new_claims}} <-
-               Guardian.exchange(token, "refresh", "access"),
-             {:ok, refresh_token} <- create_refresh_token(user, "default") do
-          {:ok, new_token, refresh_token}
-        end
+  def refresh_tokens(_member, token), do: refresh_tokens(token)
 
-      _ ->
-        Error.create(:auth, "invalid token")
+  @spec refresh_tokens(token :: String.t()) ::
+          {:ok, new_token :: String.t(), refresh_token :: String.t()}
+          | Arke.Utils.ErrorGenerator.t()
+  def refresh_tokens(token) when is_binary(token) do
+    with {:ok, claims} <- Guardian.decode_and_verify(token, %{"typ" => "refresh"}),
+         {:ok, member} <- Guardian.member_from_claims(claims),
+         {:ok, _resource, access_token, refresh_token} <- create_tokens(format_member(member)) do
+      {:ok, access_token, refresh_token}
+    else
+      {:error, [%{context: _} | _]} = error -> error
+      _ -> Error.create(:auth, "invalid token")
     end
   end
+
+  def refresh_tokens(_token), do: Error.create(:auth, "invalid token")
 
   #### JWT MANAGEMENT END #####
 
