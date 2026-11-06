@@ -44,6 +44,29 @@ defmodule ArkeAuth.Core.User do
 
   def before_load(data, _persistence_fn), do: {:ok, data}
 
+  # An update may change the credential only by carrying a plain `password`,
+  # which is hashed here. A `password_hash` that differs from the stored one is
+  # rejected: accepting it would let any caller who can update a user pick its
+  # credential (a bcrypt of a chosen password) and sign in as them.
+  def before_update(_arke, old_unit, unit) do
+    {password, data} = Map.pop(unit.data, :password)
+
+    cond do
+      is_binary(password) and password != "" ->
+        data = Map.put(data, :password_hash, hashpwsalt(password))
+        {:ok, %{unit | data: data}}
+
+      Map.get(data, :password_hash) != stored_hash(old_unit) ->
+        Error.create(:auth, "password_hash cannot be set directly")
+
+      true ->
+        {:ok, %{unit | data: data}}
+    end
+  end
+
+  defp stored_hash(%{data: data}), do: Map.get(data, :password_hash)
+  defp stored_hash(_), do: nil
+
   def before_struct_encode(_, unit) do
     {:ok, Map.replace(unit, :data, Map.delete(unit.data, :password_hash))}
   end
@@ -84,6 +107,6 @@ defmodule ArkeAuth.Core.User do
   @spec update_password(user :: ArkeAuth.Core.Unit.t(), new_pwd :: String.t()) ::
           {:ok, ArkeAuth.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def update_password(user, new_pwd) do
-    Arke.QueryManager.update(user, password_hash: hashpwsalt(new_pwd))
+    Arke.QueryManager.update(user, password: new_pwd)
   end
 end
