@@ -53,5 +53,60 @@ defmodule ArkeAuth.Core.UserTest do
 
       assert User.check_password(new_user, "new_password") == {:ok, new_user}
     end
+
+    test "an update carrying a password stores its hash, never the plain value" do
+      user = create_user()
+
+      {:ok, updated} = QueryManager.update(user, password: "rotated_password")
+
+      refute Map.has_key?(updated.data, :password)
+      refute updated.data.password_hash == "rotated_password"
+      assert {:ok, _} = User.check_password(updated, "rotated_password")
+
+      stored = QueryManager.get_by(project: :test_schema, id: to_string(user.id))
+      refute Map.has_key?(stored.data, :password)
+      assert {:ok, _} = User.check_password(stored, "rotated_password")
+    end
+
+    test "an update cannot set password_hash directly" do
+      user = create_user()
+      chosen = Bcrypt.hash_pwd_salt("attacker_password")
+
+      assert {:error, [%{context: "auth", message: "password_hash cannot be set directly"}]} =
+               QueryManager.update(user, password_hash: chosen)
+
+      stored = QueryManager.get_by(project: :test_schema, id: to_string(user.id))
+      assert {:ok, _} = User.check_password(stored, "password")
+      assert {:error, _} = User.check_password(stored, "attacker_password")
+    end
+
+    test "an update that leaves the credential alone is accepted" do
+      user = create_user()
+
+      {:ok, updated} = QueryManager.update(user, first_name: "Renamed")
+
+      assert updated.data.first_name == "Renamed"
+      assert updated.data.password_hash == user.data.password_hash
+    end
+  end
+
+  describe "Auth.update/2" do
+    test "strips credentials from a profile update" do
+      user = create_user()
+      chosen = Bcrypt.hash_pwd_salt("attacker_password")
+
+      {:ok, updated} =
+        Auth.update(user, %{first_name: "Profile", password: "x_password", password_hash: chosen})
+
+      assert updated.data.first_name == "Profile"
+      assert {:ok, _} = User.check_password(updated, "password")
+    end
+  end
+
+  defp create_user() do
+    user_model = ArkeManager.get(:user, :arke_system)
+    data = [username: "arke_auth_user", password: "password", email: "user@arke.test"]
+    {:ok, unit} = QueryManager.create(:test_schema, user_model, data)
+    unit
   end
 end
