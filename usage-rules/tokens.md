@@ -14,9 +14,16 @@
   to distinguish them from the error.
 - Error `context` values are **strings** at runtime (`"auth"`), never atoms —
   match on `%{context: "auth"}`.
-- Refresh with `Auth.refresh_tokens(member, refresh_token)` →
-  `{:ok, new_access, new_refresh}`. Refresh is hardcoded to `ArkeAuth.Guardian`;
-  SSO tokens cannot be refreshed through it (they fail with `"invalid token"`).
+- Only **access** tokens resolve a resource: `resource_from_claims/1` of both
+  `ArkeAuth.Guardian` and `ArkeAuth.SSOGuardian` returns
+  `{:error, :invalid_token_type}` for a refresh token, so a refresh token sent
+  as `Authorization: Bearer` fails `Guardian.Plug.LoadResource`.
+- Refresh with `Auth.refresh_tokens(refresh_token)` (or the legacy
+  `Auth.refresh_tokens(_member, refresh_token)`, whose first argument is
+  ignored) → `{:ok, new_access, new_refresh}`. The member comes from the
+  refresh token and must still exist and be active. Refresh is hardcoded to
+  `ArkeAuth.Guardian`; SSO tokens cannot be refreshed through it (they fail
+  with `"invalid token"`).
 - Never call `ArkeAuth.Guardian.encode_and_sign/2` with a raw member `%Unit{}`:
   `subject_for_token/2` merges the **whole** `member.data` into the JWT payload.
   Always pre-shape with `Auth.format_member(member)` (email, first/last name,
@@ -33,9 +40,8 @@
 - In a Plug context, read the current member with
   `ArkeAuth.Guardian.get_member(conn)`; pass `impersonate: true` to get the
   impersonated target instead of the impersonating admin.
-- `Guardian.resource_from_claims/1` calls `String.to_existing_atom` on the
-  project claim — if the project atom is not loaded yet it raises
-  `ArgumentError` instead of returning `{:error, _}`.
+- `Guardian.resource_from_claims/1` returns `{:error, :unauthorized}` when the
+  project claim names a project that is not loaded.
 - Impersonation is opt-in and its config is all-or-nothing: with
   `enable_impersonate: true` you MUST also set `allowed_methods`, or every
   impersonated permission check crashes with `BadMapError`:
@@ -46,5 +52,12 @@
     allowed_methods: %{get: true, post: false, put: false, delete: false}
   ```
 
-- There is no rate limiting on `validate_credentials/3`, `refresh_tokens/2` or
-  OTP generation — add throttling at the HTTP layer.
+- `validate_credentials/3` locks an account after `max_failed_logins`
+  (default 10) wrong passwords within `lockout_seconds` (default 900) of the
+  first; while locked every password, the right one included, returns
+  `"unauthorized"`. A success clears the count. Configure with
+  `config :arke_auth, ArkeAuth.Core.Auth, max_failed_logins: n, lockout_seconds: s`
+  (`max_failed_logins: false` disables it). Counters are node-local and reset
+  on restart.
+- There is no per-source rate limiting on `validate_credentials/3`,
+  `refresh_tokens/2` or OTP generation — add throttling at the HTTP layer.

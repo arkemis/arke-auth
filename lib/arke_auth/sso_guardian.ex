@@ -26,14 +26,15 @@ defmodule ArkeAuth.SSOGuardian do
       id: to_string(user.id)
     }
 
-    sub = Map.merge(jwt_data, Map.drop(user.data, [:password_hash]))
+    sub = Map.merge(Map.drop(user.data, [:password_hash]), jwt_data)
     {:ok, sub}
   end
 
   @doc """
-  Get from the token the resource
+  Get from the token the resource. Only access tokens identify a resource;
+  refresh tokens are rejected.
   """
-  def resource_from_claims(claims) do
+  def resource_from_claims(%{"typ" => "access"} = claims) do
     id = claims["sub"]["id"]
 
     case Arke.QueryManager.get_by(project: :arke_system, arke_id: :user, id: id) do
@@ -45,4 +46,6 @@ defmodule ArkeAuth.SSOGuardian do
         {:ok, user}
     end
   end
+
+  def resource_from_claims(_claims), do: {:error, :invalid_token_type}
 end

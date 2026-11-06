@@ -23,6 +23,7 @@ defmodule ArkeAuth.Application do
   def start(_type, _args) do
     children = [
       # Starts a worker by calling: ArkeAuth.Worker.start_link(arg)
+      ArkeAuth.Boundary.AttemptLimiter,
       {ArkeAuth.Boundary.OtpManager, [name: Arke.Boundary.OtpManager]}
     ]
 

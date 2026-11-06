@@ -29,10 +29,21 @@
   ```
 
 - Seed every project after creating it — this is what installs `super_admin`,
-  `member_public`, `temporary_token` and the `arke_auth_member` group:
+  `member_public`, `temporary_token` and the `arke_auth_member` and
+  `enable_sso` groups:
 
   ```bash
   mix arke.seed_project --project my_project
+  ```
+
+- An SSO login only creates members of the arkes in the project's
+  `enable_sso` group. It ships empty, and `super_admin` must never be added to
+  it: anyone with an SSO account could make themselves an admin. (Sign-up
+  through arke_server's `POST /lib/auth/:arke_id/signup` is opened per arke
+  with `config :arke_server, :self_signup_arkes`, not by a group.)
+
+  ```elixir
+  Arke.LinkManager.add_node(:my_project, "enable_sso", "customer", "group")
   ```
 
 - Registry discovery only scans declared deps whose name contains `"arke"`:
