@@ -25,12 +25,14 @@ defmodule ArkeAuth.Core.Otp do
       config :arke_auth, ArkeAuth.Otp,
         digits: 4,              # 4 or 6
         ttl: {5, :minutes},
-        max_attempts: 5
+        max_attempts: 5,
+        resend_cooldown_seconds: 30   # 0 disables it
   """
   use Arke.System
 
   alias ArkeAuth.Boundary.{AttemptLimiter, TokenStore}
   alias ArkeAuth.Utils.TokenCrypto
+  alias Arke.Utils.ErrorGenerator, as: Error
 
   # The `otp` arke stays in the registry until the legacy data is removed;
   # codes are no longer stored as units.
@@ -38,6 +40,7 @@ defmodule ArkeAuth.Core.Otp do
   end
 
   @allowed_digits [4, 6]
+  @default_resend_cooldown 30
   @default_digits 4
 
   # An expired code stays in the store this long, so that verifying it answers
@@ -48,8 +51,27 @@ defmodule ArkeAuth.Core.Otp do
   Generates a code for `subject` (a member id, or the username at signup),
   stores its HMAC and returns it in clear, once.
   """
-  def generate(project, subject, action, expiry_datetime \\ get_expiry_datetime()),
-    do: put_code(project, subject, action, generate_code(), expiry_datetime)
+  def generate(project, subject, action, expiry_datetime \\ get_expiry_datetime()) do
+    if resend_allowed?(project, action, subject),
+      do: put_code(project, subject, action, generate_code(), expiry_datetime),
+      else: Error.create(:auth, "otp resend too soon")
+  end
+
+  # At most one code per `resend_cooldown_seconds` for the same project,
+  # action and subject. `incr/2` runs on the store owner, so two concurrent
+  # requests cannot both pass.
+  defp resend_allowed?(project, action, subject) do
+    case resend_cooldown() do
+      0 ->
+        true
+
+      cooldown ->
+        key = {:otp_cooldown, project, to_string(action), to_string(subject)}
+        TokenStore.incr(key, cooldown) == 1
+    end
+  end
+
+  defp resend_cooldown(), do: config(:resend_cooldown_seconds, @default_resend_cooldown)
 
   @doc false
   # Stores a chosen code. Used by generate/4 and by tests.
@@ -131,12 +153,21 @@ defmodule ArkeAuth.Core.Otp do
   end
 
   @doc """
-  Raises unless the configured `digits` is 4 or 6. Called when
+  Raises unless the configured `digits` is 4 or 6 and
+  `resend_cooldown_seconds` is a non-negative integer. Called when
   `ArkeAuth.Application` starts.
   """
   @spec validate_config!() :: :ok
   def validate_config!() do
     check_digits!(config(:digits, @default_digits))
+
+    unless is_integer(resend_cooldown()) and resend_cooldown() >= 0,
+      do:
+        raise(
+          ArgumentError,
+          "config :arke_auth, ArkeAuth.Otp, resend_cooldown_seconds: must be an integer >= 0"
+        )
+
     :ok
   end
 
