@@ -31,3 +31,6 @@ config :arke_auth, ArkeAuth.SSOGuardian,
 
 config :arke_auth, ArkeAuth.Utils.TokenCrypto,
   token_key: "test-token-key-0123456789abcdef0123456789abcdef0123456789abcdef"
+
+config :arke_auth, ArkeAuth.Core.Password,
+  pepper: "test-password-pepper-0123456789abcdef0123456789abcdef0123456789"

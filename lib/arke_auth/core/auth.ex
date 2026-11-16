@@ -17,8 +17,7 @@ defmodule ArkeAuth.Core.Auth do
     `ArkeAuth.Core.Auth` documentation
   """
 
-  import Comeonin.Bcrypt, only: [checkpw: 2, dummy_checkpw: 0]
-
+  require Logger
   alias Arke.QueryManager
   alias ArkeAuth.Core.User
   alias ArkeAuth.{Guardian, SSOGuardian}
@@ -172,11 +171,11 @@ defmodule ArkeAuth.Core.Auth do
   defp get_by_username(username, project) when is_binary(username) do
     case QueryManager.get_by(project: project, arke_id: :user, username: username) do
       [] ->
-        dummy_checkpw()
+        ArkeAuth.Core.Password.dummy_verify()
         Error.create(:auth, "login error")
 
       nil ->
-        dummy_checkpw()
+        ArkeAuth.Core.Password.dummy_verify()
         Error.create(:auth, "login error")
 
       unit ->
@@ -185,10 +184,28 @@ defmodule ArkeAuth.Core.Auth do
   end
 
   defp verify_password(password, user) when is_binary(password) do
-    if checkpw(password, user.data.password_hash) do
-      {:ok, user}
-    else
-      Error.create(:auth, "login error")
+    case ArkeAuth.Core.Password.verify(password, user.data.password_hash) do
+      {:ok, :current} ->
+        {:ok, user}
+
+      {:ok, :legacy} ->
+        rehash(user, password)
+        {:ok, user}
+
+      :error ->
+        Error.create(:auth, "login error")
+    end
+  end
+
+  # A legacy hash (no pepper) is replaced by a peppered one at the first
+  # successful sign-in. A failure only delays the migration.
+  defp rehash(user, password) do
+    case User.update_password(user, password) do
+      {:ok, _user} ->
+        :ok
+
+      error ->
+        Logger.warning("could not re-hash the password of user #{user.id}: #{inspect(error)}")
     end
   end
 

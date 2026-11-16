@@ -25,6 +25,7 @@ defmodule ArkeAuth.Application do
     ArkeAuth.Core.Otp.validate_config!()
     ArkeAuth.Core.MemberToken.validate_config!()
     ArkeAuth.ResetPasswordToken.validate_config!()
+    ArkeAuth.Core.Password.validate_config!()
 
     children = [
       # Starts a worker by calling: ArkeAuth.Worker.start_link(arg)
