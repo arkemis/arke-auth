@@ -45,6 +45,20 @@ defmodule ArkeAuth.Boundary.TokenStoreTest do
     assert TokenStore.get(:gone) == nil
   end
 
+  test "delete_match/2 deletes the matching entries only" do
+    TokenStore.put({:tok, :p, "a"}, %{owner: "m1", other: 1}, 60)
+    TokenStore.put({:tok, :p, "b"}, %{owner: "m1"}, 60)
+    TokenStore.put({:tok, :p, "c"}, %{owner: "m2"}, 60)
+    TokenStore.put({:tok, :q, "d"}, %{owner: "m1"}, 60)
+
+    assert :ok = TokenStore.delete_match({:tok, :p, :_}, %{owner: "m1"})
+
+    assert TokenStore.get({:tok, :p, "a"}) == nil
+    assert TokenStore.get({:tok, :p, "b"}) == nil
+    assert TokenStore.get({:tok, :p, "c"}) == %{owner: "m2"}
+    assert TokenStore.get({:tok, :q, "d"}) == %{owner: "m1"}
+  end
+
   test "incr/2 counts within a window and restarts after it" do
     assert TokenStore.incr(:counter, 1) == 1
     assert TokenStore.incr(:counter, 1) == 2

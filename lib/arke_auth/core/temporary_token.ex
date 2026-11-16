@@ -14,78 +14,141 @@
 
 defmodule ArkeAuth.Core.TemporaryToken do
   @moduledoc """
-  Documentation for `TemporaryToken`.
+  Bearer tokens for magic links (e.g. invitations): whoever holds one signs
+  in as the linked member.
+
+  Tokens live only in `ArkeAuth.Boundary.TokenStore`, keyed by an HMAC of the
+  token (`ArkeAuth.Utils.TokenCrypto`); the clear token is returned once, to
+  the caller that builds the link. They are not units, so the generic unit
+  endpoints cannot list them, and they are lost when the whole cluster
+  restarts. A token lasts at most #{30} days.
   """
+  alias ArkeAuth.Boundary.TokenStore
+  alias ArkeAuth.Utils.TokenCrypto
+  alias Arke.Utils.ErrorGenerator, as: Error
 
-  alias Arke.QueryManager
-  alias Arke.Boundary.ArkeManager
+  @max_seconds 30 * 86_400
 
-  use Arke.System
-
-  arke id: :temporary_token do
-  end
-
-  # The token id is the bearer secret (it is what a magic link carries), so it
-  # must be unguessable. Arke's default id is a UUID v1 (timestamp + node), and
-  # consecutive ones are predictable; this is 256 bits from a CSPRNG instead.
+  # The token is the bearer secret: 256 bits from a CSPRNG, hex encoded.
   @secret_bytes 32
 
   @doc """
-  A fresh, unguessable temporary-token id: #{@secret_bytes} random bytes, hex
-  encoded.
+  A fresh, unguessable token: #{@secret_bytes} random bytes, hex encoded.
   """
   @spec generate_secret() :: String.t()
   def generate_secret(),
     do: :crypto.strong_rand_bytes(@secret_bytes) |> Base.encode16(case: :lower)
 
-  def generate_token(project, duration \\ nil, is_reusable \\ false, opts \\ []) do
-    temp_arke = ArkeManager.get(:temporary_token, project)
-    expiration_datetime = calculate_expiration_datetime(duration)
-
-    data =
-      [id: generate_secret(), expiration_datetime: expiration_datetime, is_reusable: is_reusable] ++
-        Keyword.delete(opts, :id)
-
-    QueryManager.create(project, temp_arke, data)
-  end
-
+  @doc """
+  A token that signs in as `member` (a member or its id) for `duration`:
+  `nil` (config `:temporary_token_expiration`, default 1800 seconds), a number
+  of seconds, `%{days: d}`, `%{minutes: m}` or `%{days: d, minutes: m}`, at
+  most 30 days. A reusable token survives its uses; otherwise the first
+  sign-in consumes it. Extra `opts` are kept with the token and returned in
+  `data`.
+  """
   def generate_auth_token(project, member, duration \\ nil, is_reusable \\ false, opts \\ [])
 
   def generate_auth_token(project, member, duration, is_reusable, opts) when is_map(member),
     do: generate_auth_token(project, member.id, duration, is_reusable, opts)
 
-  def generate_auth_token(project, member_id, duration, is_reusable, opts) do
-    temp_arke = ArkeManager.get(:temporary_token, project)
-    expiration_datetime = calculate_expiration_datetime(duration)
+  def generate_auth_token(project, member_id, duration, is_reusable, opts),
+    do: create(project, to_string(member_id), duration, is_reusable, opts)
 
-    data =
-      [
-        id: generate_secret(),
-        link_member: member_id,
-        expiration_datetime: expiration_datetime,
-        is_reusable: is_reusable
-      ] ++ Keyword.delete(opts, :id)
+  @doc deprecated: "Use generate_auth_token/5: a token without a member signs nobody in."
+  def generate_token(project, duration \\ nil, is_reusable \\ false, opts \\ []),
+    do: create(project, nil, duration, is_reusable, opts)
 
-    QueryManager.create(project, temp_arke, data)
+  @doc """
+  The token's data if it exists, has not expired and (when `member_id` is
+  given) belongs to that member.
+  """
+  def verify(project, token, member_id \\ nil) do
+    with entry when not is_nil(entry) <- lookup(project, token),
+         true <- is_nil(member_id) or entry.link_member == to_string(member_id) do
+      {:ok, to_token(project, token, entry)}
+    else
+      _ -> Error.create(:auth, "invalid token")
+    end
   end
 
-  defp calculate_expiration_datetime(duration) when is_nil(duration),
+  @doc """
+  Like `verify/3`, and consumes the token unless it is reusable. Only one of
+  two concurrent uses of a single-use token succeeds.
+  """
+  def consume(project, token) do
+    with {:ok, %{data: %{is_reusable: reusable}}} = ok <- verify(project, token) do
+      cond do
+        reusable -> ok
+        TokenStore.take(store_key(project, token)) -> ok
+        true -> Error.create(:auth, "invalid token")
+      end
+    end
+  end
+
+  @spec revoke(atom(), String.t()) :: :ok
+  def revoke(project, token), do: TokenStore.delete(store_key(project, token))
+
+  @doc "Revokes every token of `member_id` in `project`."
+  @spec revoke_all_for_member(atom(), term()) :: :ok
+  def revoke_all_for_member(project, member_id),
     do:
-      add_from_now(
-        Application.get_env(:arke_auth, :temporary_token_expiration, 1800)
-        |> to_string()
+      TokenStore.delete_match(
+        {:temporary_token, project, :_},
+        %{link_member: to_string(member_id)}
       )
 
-  defp calculate_expiration_datetime(%{days: days}), do: add_from_now(days * 86400)
-  defp calculate_expiration_datetime(%{minutes: minutes}), do: add_from_now(minutes * 60)
+  defp create(project, member_id, duration, is_reusable, opts) do
+    with {:ok, seconds} <- duration_seconds(duration) do
+      token = generate_secret()
 
-  defp calculate_expiration_datetime(%{days: days, minutes: minutes}),
-    do: add_from_now(days * 86400 + minutes * 60)
+      entry = %{
+        link_member: member_id,
+        is_reusable: is_reusable == true,
+        expiration_datetime: NaiveDateTime.utc_now() |> NaiveDateTime.add(seconds, :second),
+        opts: opts |> Keyword.delete(:id) |> Map.new()
+      }
 
-  defp calculate_expiration_datetime(duration), do: add_from_now(duration)
+      :ok = TokenStore.put(store_key(project, token), entry, seconds)
+      {:ok, to_token(project, token, entry)}
+    end
+  end
 
-  defp add_from_now(seconds) when is_binary(seconds),
-    do: String.to_integer(seconds) |> add_from_now
+  defp lookup(project, token) when is_binary(token), do: TokenStore.get(store_key(project, token))
+  defp lookup(_project, _token), do: nil
 
-  defp add_from_now(seconds), do: NaiveDateTime.utc_now() |> NaiveDateTime.add(seconds, :second)
+  defp store_key(project, token),
+    do: {:temporary_token, project, TokenCrypto.hmac(:temporary_token, to_string(token))}
+
+  defp to_token(project, token, entry) do
+    %{
+      id: token,
+      metadata: %{project: project},
+      data:
+        Map.merge(entry.opts, %{
+          link_member: entry.link_member,
+          is_reusable: entry.is_reusable,
+          expiration_datetime: entry.expiration_datetime
+        })
+    }
+  end
+
+  defp duration_seconds(nil),
+    do: duration_seconds(Application.get_env(:arke_auth, :temporary_token_expiration, 1800))
+
+  defp duration_seconds(seconds) when is_binary(seconds),
+    do: seconds |> String.to_integer() |> duration_seconds()
+
+  defp duration_seconds(%{days: days, minutes: minutes}),
+    do: duration_seconds(days * 86_400 + minutes * 60)
+
+  defp duration_seconds(%{days: days}), do: duration_seconds(days * 86_400)
+  defp duration_seconds(%{minutes: minutes}), do: duration_seconds(minutes * 60)
+
+  defp duration_seconds(seconds) when is_integer(seconds) and seconds > @max_seconds,
+    do: Error.create(:auth, "temporary token duration exceeds 30 days")
+
+  defp duration_seconds(seconds) when is_integer(seconds) and seconds > 0, do: {:ok, seconds}
+
+  defp duration_seconds(_duration), do: Error.create(:auth, "invalid temporary token duration")
 end

@@ -70,6 +70,15 @@ defmodule ArkeAuth.Boundary.TokenStore do
   def delete(key), do: call({:delete, key})
 
   @doc """
+  Deletes every entry whose key matches `key_pattern` and whose value matches
+  `value_pattern` (ETS match patterns: `:_` is a wildcard, a map pattern
+  matches the maps that contain its keys with those values).
+  """
+  @spec delete_match(term(), term()) :: :ok
+  def delete_match(key_pattern, value_pattern),
+    do: call({:delete_match, key_pattern, value_pattern})
+
+  @doc """
   Increments the counter at `key` and returns the new count. A missing or
   expired counter starts at 1 and lives `ttl` seconds; later increments keep
   its expiry (a fixed window).
@@ -137,6 +146,11 @@ defmodule ArkeAuth.Boundary.TokenStore do
 
   def handle_call({:delete, key}, _from, state) do
     write({:delete, key})
+    {:reply, :ok, state}
+  end
+
+  def handle_call({:delete_match, key_pattern, value_pattern}, _from, state) do
+    write({:match_delete, key_pattern, value_pattern})
     {:reply, :ok, state}
   end
 
@@ -232,6 +246,9 @@ defmodule ArkeAuth.Boundary.TokenStore do
   defp apply_op({:insert, row}), do: :ets.insert(@table, row)
   defp apply_op({:delete, key}), do: :ets.delete(@table, key)
   defp apply_op(:clear), do: :ets.delete_all_objects(@table)
+
+  defp apply_op({:match_delete, key_pattern, value_pattern}),
+    do: :ets.match_delete(@table, {key_pattern, value_pattern, :_})
 
   defp lookup(key) do
     now = now()

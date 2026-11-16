@@ -71,8 +71,14 @@ defmodule ArkeAuth.Core.Member do
   @default_user_update_fields [:first_name, :last_name, :phone_number]
   @never_updatable_user_fields ["password", "password_hash"]
 
-  def before_unit_update(_arke, %{data: %{arke_system_user: new_user}} = unit)
-      when is_map(new_user) do
+  # A member being deactivated loses its magic links first.
+  def before_unit_update(arke, unit) do
+    if inactive?(unit), do: revoke_tokens(unit)
+    update_linked_user(arke, unit)
+  end
+
+  defp update_linked_user(_arke, %{data: %{arke_system_user: new_user}} = unit)
+       when is_map(new_user) do
     linked_user_id = linked_user_id(unit)
 
     with %Arke.Core.Unit{} = user <- get_linked_user(linked_user_id),
@@ -89,15 +95,23 @@ defmodule ArkeAuth.Core.Member do
     end
   end
 
-  def before_unit_update(_arke, %{data: %{arke_system_user: new_user}} = unit)
-      when not is_nil(new_user) do
+  defp update_linked_user(_arke, %{data: %{arke_system_user: new_user}} = unit)
+       when not is_nil(new_user) do
     case to_string(new_user) == to_string(linked_user_id(unit)) do
       true -> {:ok, unit}
       false -> Error.create(:auth, "arke_system_user cannot be changed")
     end
   end
 
-  def before_unit_update(_arke, unit), do: {:ok, unit}
+  defp update_linked_user(_arke, unit), do: {:ok, unit}
+
+  defp inactive?(%{data: data}), do: Map.get(data, :inactive) in [true, "true"]
+  defp inactive?(_unit), do: false
+
+  defp revoke_tokens(%{id: id, metadata: %{project: project}}),
+    do: ArkeAuth.Core.TemporaryToken.revoke_all_for_member(project, id)
+
+  defp revoke_tokens(_unit), do: :ok
 
   # The update callbacks of arke 0.6 do not receive the stored unit, so the
   # linked user is read from the stored member.
@@ -154,7 +168,12 @@ defmodule ArkeAuth.Core.Member do
   # is deleted only once no member in any project references it any more;
   # otherwise removing someone from one project would destroy their account
   # (and credentials) everywhere else.
-  def on_unit_delete(_arke, %{data: data, metadata: %{project: project}} = unit) do
+  def on_unit_delete(arke, unit) do
+    revoke_tokens(unit)
+    delete_unlinked_user(arke, unit)
+  end
+
+  defp delete_unlinked_user(_arke, %{data: data, metadata: %{project: project}} = unit) do
     with user_id when not is_nil(user_id) <- Map.get(data, :arke_system_user),
          user_id = to_string(user_id),
          false <- referenced_by_other_member?(user_id, project, unit.id),
@@ -168,7 +187,7 @@ defmodule ArkeAuth.Core.Member do
     end
   end
 
-  def on_unit_delete(_arke, unit), do: {:ok, unit}
+  defp delete_unlinked_user(_arke, unit), do: {:ok, unit}
 
   defp referenced_by_other_member?(user_id, deleted_project, deleted_id) do
     Enum.any?(member_projects(deleted_project), fn project ->
