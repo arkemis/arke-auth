@@ -22,11 +22,11 @@ defmodule ArkeAuth.Application do
   @impl true
   def start(_type, _args) do
     ArkeAuth.Utils.TokenCrypto.validate_config!()
+    ArkeAuth.Core.Otp.validate_config!()
 
     children = [
       # Starts a worker by calling: ArkeAuth.Worker.start_link(arg)
-      ArkeAuth.Boundary.TokenStore,
-      {ArkeAuth.Boundary.OtpManager, [name: Arke.Boundary.OtpManager]}
+      ArkeAuth.Boundary.TokenStore
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
