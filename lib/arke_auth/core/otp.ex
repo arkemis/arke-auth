@@ -28,16 +28,9 @@ defmodule ArkeAuth.Core.Otp do
         max_attempts: 5,
         resend_cooldown_seconds: 30   # 0 disables it
   """
-  use Arke.System
-
   alias ArkeAuth.Boundary.{AttemptLimiter, TokenStore}
   alias ArkeAuth.Utils.TokenCrypto
   alias Arke.Utils.ErrorGenerator, as: Error
-
-  # The `otp` arke stays in the registry until the legacy data is removed;
-  # codes are no longer stored as units.
-  arke id: :otp do
-  end
 
   @allowed_digits [4, 6]
   @default_resend_cooldown 30
