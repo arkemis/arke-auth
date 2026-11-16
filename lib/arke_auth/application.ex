@@ -21,6 +21,8 @@ defmodule ArkeAuth.Application do
 
   @impl true
   def start(_type, _args) do
+    ArkeAuth.Utils.TokenCrypto.validate_config!()
+
     children = [
       # Starts a worker by calling: ArkeAuth.Worker.start_link(arg)
       ArkeAuth.Boundary.TokenStore,
