@@ -22,6 +22,7 @@ defmodule ArkeAuth.Core.Member do
   Documentation for `Member`.
   """
   use Arke.System.Group
+  require Logger
 
   group id: "arke_auth_member" do
   end
@@ -44,8 +45,13 @@ defmodule ArkeAuth.Core.Member do
 
   def on_unit_create(_arke, unit), do: {:ok, unit}
 
-  def before_unit_create(_arke, %{data: %{arke_system_user: arke_system_user}} = unit)
-      when is_map(arke_system_user) do
+  def before_unit_create(arke, unit) do
+    warn_legacy_auth_token(unit)
+    create_linked_user(arke, unit)
+  end
+
+  defp create_linked_user(_arke, %{data: %{arke_system_user: arke_system_user}} = unit)
+       when is_map(arke_system_user) do
     arke_user = ArkeManager.get(:user, :arke_system)
 
     user_data =
@@ -62,7 +68,7 @@ defmodule ArkeAuth.Core.Member do
     end
   end
 
-  def before_unit_create(_arke, unit), do: {:ok, unit}
+  defp create_linked_user(_arke, unit), do: {:ok, unit}
 
   # The linked user is global: it is shared by every member of that person in
   # every project. Updating a member may therefore touch only an allow-list of
@@ -73,9 +79,27 @@ defmodule ArkeAuth.Core.Member do
 
   # A member being deactivated loses its magic links first.
   def before_unit_update(arke, unit) do
+    warn_legacy_auth_token(unit)
     if inactive?(unit), do: revoke_tokens(unit)
     update_linked_user(arke, unit)
   end
+
+  # Sign-in links are issued by ArkeAuth.Core.MemberToken; the field is kept
+  # but no longer gives access.
+  defp warn_legacy_auth_token(%{data: data}) do
+    case Map.get(data, :auth_token) do
+      token when token in [nil, ""] ->
+        :ok
+
+      _token ->
+        Logger.warning(
+          "member auth_token is deprecated and no longer signs in: " <>
+            "use ArkeAuth.Core.MemberToken.issue/3"
+        )
+    end
+  end
+
+  defp warn_legacy_auth_token(_unit), do: :ok
 
   defp update_linked_user(_arke, %{data: %{arke_system_user: new_user}} = unit)
        when is_map(new_user) do
@@ -108,8 +132,10 @@ defmodule ArkeAuth.Core.Member do
   defp inactive?(%{data: data}), do: Map.get(data, :inactive) in [true, "true"]
   defp inactive?(_unit), do: false
 
-  defp revoke_tokens(%{id: id, metadata: %{project: project}}),
-    do: ArkeAuth.Core.TemporaryToken.revoke_all_for_member(project, id)
+  defp revoke_tokens(%{id: id, metadata: %{project: project}}) do
+    ArkeAuth.Core.TemporaryToken.revoke_all_for_member(project, id)
+    ArkeAuth.Core.MemberToken.revoke_all_for_member(project, id)
+  end
 
   defp revoke_tokens(_unit), do: :ok
 

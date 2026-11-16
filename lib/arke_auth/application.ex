@@ -23,6 +23,7 @@ defmodule ArkeAuth.Application do
   def start(_type, _args) do
     ArkeAuth.Utils.TokenCrypto.validate_config!()
     ArkeAuth.Core.Otp.validate_config!()
+    ArkeAuth.Core.MemberToken.validate_config!()
 
     children = [
       # Starts a worker by calling: ArkeAuth.Worker.start_link(arg)
