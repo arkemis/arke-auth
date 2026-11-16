@@ -35,6 +35,15 @@ defmodule ArkeAuth.Boundary.TokenStoreClusterTest do
     assert :erpc.call(peer, TokenStore, :incr, [:cluster_counter, 60]) == 2
   end
 
+  test "AttemptLimiter counts the failures of every node together" do
+    [peer] = start_peers(1)
+    key = {:login, "cluster_user"}
+
+    assert ArkeAuth.Boundary.AttemptLimiter.hit(key, 60) == 1
+    assert :erpc.call(peer, ArkeAuth.Boundary.AttemptLimiter, :hit, [key, 60]) == 2
+    assert :erpc.call(peer, ArkeAuth.Boundary.AttemptLimiter, :count, [key]) == 2
+  end
+
   test "concurrent take/1 from two nodes consumes the value once" do
     [peer] = start_peers(1)
     TokenStore.put(:cluster_race, "v", 60)

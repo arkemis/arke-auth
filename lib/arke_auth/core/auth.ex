@@ -108,7 +108,7 @@ defmodule ArkeAuth.Core.Auth do
   # `lockout_seconds` of the first one, the account refuses every password
   # (the right one included) until the window closes. A success clears the
   # count. Unknown usernames are counted too, so a lock reveals nothing.
-  # Counters are node-local; see ArkeAuth.Boundary.AttemptLimiter.
+  # Counters are shared by the cluster; see ArkeAuth.Boundary.AttemptLimiter.
   defp throttled_password_auth(username, password) do
     case lockout_config() do
       nil ->
