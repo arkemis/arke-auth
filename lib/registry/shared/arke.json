@@ -28,24 +28,6 @@
       "id": "member_public",
       "label": "Member Public",
       "parameters": []
-    },
-    {
-      "id": "temporary_token",
-      "label": "Temporary Token",
-      "parameters": [
-        {
-          "id": "expiration_datetime",
-          "metadata": {}
-        },
-        {
-          "id": "is_reusable",
-          "metadata": {}
-        },
-        {
-          "id": "link_member",
-          "metadata": {}
-        }
-      ]
     }
   ]
 }

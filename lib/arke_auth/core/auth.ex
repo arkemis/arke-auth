@@ -17,8 +17,7 @@ defmodule ArkeAuth.Core.Auth do
     `ArkeAuth.Core.Auth` documentation
   """
 
-  import Comeonin.Bcrypt, only: [checkpw: 2, dummy_checkpw: 0]
-
+  require Logger
   alias Arke.QueryManager
   alias ArkeAuth.Core.User
   alias ArkeAuth.{Guardian, SSOGuardian}
@@ -108,7 +107,7 @@ defmodule ArkeAuth.Core.Auth do
   # `lockout_seconds` of the first one, the account refuses every password
   # (the right one included) until the window closes. A success clears the
   # count. Unknown usernames are counted too, so a lock reveals nothing.
-  # Counters are node-local; see ArkeAuth.Boundary.AttemptLimiter.
+  # Counters are shared by the cluster; see ArkeAuth.Boundary.AttemptLimiter.
   defp throttled_password_auth(username, password) do
     case lockout_config() do
       nil ->
@@ -172,11 +171,11 @@ defmodule ArkeAuth.Core.Auth do
   defp get_by_username(username, project) when is_binary(username) do
     case QueryManager.get_by(project: project, arke_id: :user, username: username) do
       [] ->
-        dummy_checkpw()
+        ArkeAuth.Core.Password.dummy_verify()
         Error.create(:auth, "login error")
 
       nil ->
-        dummy_checkpw()
+        ArkeAuth.Core.Password.dummy_verify()
         Error.create(:auth, "login error")
 
       unit ->
@@ -185,10 +184,28 @@ defmodule ArkeAuth.Core.Auth do
   end
 
   defp verify_password(password, user) when is_binary(password) do
-    if checkpw(password, user.data.password_hash) do
-      {:ok, user}
-    else
-      Error.create(:auth, "login error")
+    case ArkeAuth.Core.Password.verify(password, user.data.password_hash, user.id) do
+      {:ok, :current} ->
+        {:ok, user}
+
+      {:ok, kind} when kind in [:legacy, :wrapped] ->
+        rehash(user, password)
+        {:ok, user}
+
+      :error ->
+        Error.create(:auth, "login error")
+    end
+  end
+
+  # A legacy or wrapped hash is replaced by a peppered one at the first
+  # successful sign-in. A failure only delays the migration.
+  defp rehash(user, password) do
+    case User.update_password(user, password) do
+      {:ok, _user} ->
+        :ok
+
+      error ->
+        Logger.warning("could not re-hash the password of user #{user.id}: #{inspect(error)}")
     end
   end
 

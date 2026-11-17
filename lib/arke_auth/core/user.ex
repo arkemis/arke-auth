@@ -13,7 +13,7 @@
 # limitations under the License.
 
 defmodule ArkeAuth.Core.User do
-  import Comeonin.Bcrypt, only: [hashpwsalt: 1, checkpw: 2]
+  alias ArkeAuth.Core.Password
   alias ArkeAuth.Boundary.Validators
 
   alias Arke.Utils.ErrorGenerator, as: Error
@@ -31,7 +31,10 @@ defmodule ArkeAuth.Core.User do
     case Map.get(data, :arke_id) do
       nil ->
         with {:ok, pwd} <- Validators.check_user_password(data) do
-          new_data = Map.put(data, :password_hash, hashpwsalt(pwd)) |> Map.delete(:password)
+          # The id does not exist yet: before_create/2 binds the hash to it.
+          new_data =
+            Map.put(data, :password_hash, Password.pending(pwd)) |> Map.delete(:password)
+
           {:ok, new_data}
         else
           {:error, msg} -> {:error, msg}
@@ -44,6 +47,14 @@ defmodule ArkeAuth.Core.User do
 
   def before_load(data, _persistence_fn), do: {:ok, data}
 
+  # The persistence assigns the id of a new unit after the hooks; the hash
+  # needs it now, so assign it here (a UUID, as the persistence would).
+  def before_create(_arke, %{data: data} = unit) do
+    id = unit.id || String.to_atom(UUID.uuid1())
+    hash = Password.bind_pending(Map.get(data, :password_hash), id)
+    {:ok, %{unit | id: id, data: Map.put(data, :password_hash, hash)}}
+  end
+
   # An update may change the credential only by carrying a plain `password`,
   # which is hashed here. A `password_hash` that differs from the stored one is
   # rejected: accepting it would let any caller who can update a user pick its
@@ -53,7 +64,7 @@ defmodule ArkeAuth.Core.User do
 
     cond do
       is_binary(password) and password != "" ->
-        data = Map.put(data, :password_hash, hashpwsalt(password))
+        data = Map.put(data, :password_hash, Password.hash(password, old_unit.id))
         {:ok, %{unit | data: data}}
 
       Map.get(data, :password_hash) != stored_hash(old_unit) ->
@@ -88,9 +99,9 @@ defmodule ArkeAuth.Core.User do
   @spec check_password(user :: ArkeAuth.Core.Unit.t(), pwd :: String.t()) ::
           {:ok, ArkeAuth.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def check_password(%{data: data} = user, pwd) do
-    case checkpw(pwd, data.password_hash) do
-      true -> {:ok, user}
-      false -> Error.create(:auth, "invalid password")
+    case Password.verify(pwd, data.password_hash, user.id) do
+      {:ok, _kind} -> {:ok, user}
+      :error -> Error.create(:auth, "invalid password")
     end
   end
 

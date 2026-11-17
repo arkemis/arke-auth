@@ -6,13 +6,14 @@ import Config
 config :arke,
   persistence: %{
     arke_postgres: %{
-      create: &ArkeAuth.Support.Persistence.create/2,
-      update: &ArkeAuth.Support.Persistence.update/2,
-      delete: &ArkeAuth.Support.Persistence.delete/2,
-      execute_query: &ArkeAuth.Support.Persistence.execute_query/2,
-      get_parameters: &ArkeAuth.Support.Persistence.get_parameters/0,
-      create_project: &ArkeAuth.Support.Persistence.create_project/1,
-      delete_project: &ArkeAuth.Support.Persistence.delete_project/1
+      create: &Arke.Test.Persistence.create/2,
+      update: &Arke.Test.Persistence.update/2,
+      update_key: &Arke.Test.Persistence.update_key/2,
+      delete: &Arke.Test.Persistence.delete/2,
+      execute_query: &Arke.Test.Persistence.execute/2,
+      get_parameters: &Arke.Test.Persistence.get_parameters/0,
+      create_project: &Arke.Test.Persistence.create_project/1,
+      delete_project: &Arke.Test.Persistence.delete_project/1
     }
   }
 
@@ -27,3 +28,9 @@ config :arke_auth, ArkeAuth.SSOGuardian,
   secret_key: "Wd0e9tYyb7r8JgQv1L3mZ5pS2kH6nX4cA0fT7uE9iR3oP1sD8gV2jB5qN6wM4yC7",
   verify_issuer: true,
   token_ttl: %{"access" => {7, :days}, "refresh" => {30, :days}}
+
+config :arke_auth, ArkeAuth.Utils.TokenCrypto,
+  token_key: "test-token-key-0123456789abcdef0123456789abcdef0123456789abcdef"
+
+config :arke_auth, ArkeAuth.Core.Password,
+  pepper: "test-password-pepper-0123456789abcdef0123456789abcdef0123456789"

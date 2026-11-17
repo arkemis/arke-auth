@@ -34,7 +34,7 @@
       "persistence": "arke_parameter",
       "required": false,
       "strip": false,
-"lowercase": false,
+      "lowercase": false,
       "unique": false,
       "values": null
     },
@@ -53,7 +53,7 @@
       "persistence": "arke_parameter",
       "required": false,
       "strip": false,
-"lowercase": false,
+      "lowercase": false,
       "unique": false,
       "values": null
     },
@@ -69,51 +69,6 @@
       "only_run_time:": false,
       "persistence": "arke_parameter",
       "required": true
-    },
-    {
-      "default_boolean": null,
-      "type": "boolean",
-      "format": "attribute",
-      "helper_text": null,
-      "id": "is_reusable",
-      "is_primary": false,
-      "label": "Is Reusable",
-      "nullable": true,
-      "only_run_time": false,
-      "persistence": "arke_parameter",
-      "required": false
-    },
-    {
-      "arke_or_group_id": "arke_auth_member",
-      "connection_type": "temporary_token_auth",
-      "default_link": null,
-      "type": "link",
-      "depth": 0,
-      "direction": "child",
-      "format": "attribute",
-      "helper_text": null,
-      "id": "link_member",
-      "is_primary": false,
-      "label": "Link Member",
-      "multiple": false,
-      "nullable": true,
-      "persistence": "arke_parameter",
-      "required": false,
-      "filter_keys": ["id", "arke_id"],
-      "only_run_time": false
-    },
-    {
-      "default_datetime": null,
-      "type": "datetime",
-      "format": "attribute",
-      "helper_text": null,
-      "id": "expiration_datetime",
-      "is_primary": false,
-      "label": "Expiration Datetime",
-      "nullable": true,
-      "only_run_time": false,
-      "persistence": "arke_parameter",
-      "required": false
     }
   ]
 }

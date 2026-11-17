@@ -72,14 +72,80 @@ defmodule ArkeAuth.Core.OtpTest do
       end
     end
 
-    test "fewer than four digits cannot be requested" do
-      assert String.length(Otp.generate_code(2)) == 4
+    test "only four or six digits can be requested" do
+      assert String.length(Otp.generate_code(4)) == 4
       assert String.length(Otp.generate_code(6)) == 6
+      assert_raise ArgumentError, fn -> Otp.generate_code(2) end
+      assert_raise ArgumentError, fn -> Otp.generate_code(5) end
+    end
+
+    test "the digits config accepts only 4 or 6" do
+      previous = Application.get_env(:arke_auth, ArkeAuth.Otp)
+      on_exit(fn -> restore_env(ArkeAuth.Otp, previous) end)
+
+      Application.put_env(:arke_auth, ArkeAuth.Otp, digits: 6)
+      assert Otp.validate_config!() == :ok
+      assert Otp.generate_code() =~ ~r/^\d{6}$/
+
+      Application.put_env(:arke_auth, ArkeAuth.Otp, digits: 5)
+      assert_raise ArgumentError, &Otp.validate_config!/0
     end
 
     test "generate/3 stores a four-digit code" do
       {:ok, otp} = Otp.generate(:test_schema, :gen_member, "signin")
       assert otp.data.code =~ ~r/^\d{4}$/
+    end
+  end
+
+  describe "Otp.generate/4 resend cooldown" do
+    test "a second code within the cooldown is refused and the first stays valid" do
+      put_otp_config(resend_cooldown_seconds: 30)
+      {:ok, first} = Otp.generate(:test_schema, :cooldown_member, "signin")
+
+      assert {:error, [%{message: "otp resend too soon"}]} =
+               Otp.generate(:test_schema, :cooldown_member, "signin")
+
+      assert {:ok, _} =
+               OtpManager.verify_code(
+                 :test_schema,
+                 %{id: :cooldown_member},
+                 "signin",
+                 first.data.code
+               )
+    end
+
+    test "a new code is allowed once the cooldown is over" do
+      put_otp_config(resend_cooldown_seconds: 1)
+      {:ok, _} = Otp.generate(:test_schema, :cooldown_over, "signin")
+      Process.sleep(1_100)
+      assert {:ok, _} = Otp.generate(:test_schema, :cooldown_over, "signin")
+    end
+
+    test "other actions and subjects are not blocked" do
+      put_otp_config(resend_cooldown_seconds: 30)
+      {:ok, _} = Otp.generate(:test_schema, :cooldown_a, "signin")
+      assert {:ok, _} = Otp.generate(:test_schema, :cooldown_a, "reset_password")
+      assert {:ok, _} = Otp.generate(:test_schema, :cooldown_b, "signin")
+    end
+
+    test "concurrent requests generate one code" do
+      put_otp_config(resend_cooldown_seconds: 30)
+
+      results =
+        1..20
+        |> Enum.map(fn _ ->
+          Task.async(fn -> Otp.generate(:test_schema, :cooldown_race, "signin") end)
+        end)
+        |> Enum.map(&Task.await/1)
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    end
+
+    test "the cooldown must be a non-negative integer" do
+      put_otp_config(resend_cooldown_seconds: -1)
+      assert_raise ArgumentError, &Otp.validate_config!/0
+      put_otp_config(resend_cooldown_seconds: 0)
+      assert Otp.validate_config!() == :ok
     end
   end
 
@@ -109,8 +175,7 @@ defmodule ArkeAuth.Core.OtpTest do
     end
 
     test "an integer submission keeps the code's leading zeros" do
-      {:ok, otp} = Otp.generate(:test_schema, :verify_zero, "signin")
-      {:ok, otp} = QueryManager.update(otp, code: "0042")
+      {:ok, _otp} = Otp.put_code(:test_schema, :verify_zero, "signin", "0042", nil)
 
       assert {:ok, _} = OtpManager.verify_code(:test_schema, %{id: :verify_zero}, "signin", 42)
     end
@@ -151,6 +216,7 @@ defmodule ArkeAuth.Core.OtpTest do
     end
 
     test "a regenerated code gets a fresh attempt budget" do
+      put_otp_config(resend_cooldown_seconds: 0)
       member = %{id: :verify_regen}
       {:ok, first} = Otp.generate(:test_schema, member.id, "signin")
 
@@ -181,6 +247,38 @@ defmodule ArkeAuth.Core.OtpTest do
       assert OtpManager.get_code(:test_schema, %{id: :verify_expired}, "signin") == nil
     end
 
+    test "the code is not stored in the database nor in clear in the store" do
+      {:ok, otp} = Otp.generate(:test_schema, :verify_storage, "signin")
+
+      assert QueryManager.get_by(project: :test_schema, arke_id: :otp) == nil
+
+      entry =
+        ArkeAuth.Boundary.TokenStore.get(Otp.store_key(:test_schema, "signin", "verify_storage"))
+
+      refute Map.has_key?(entry, :code)
+      refute entry.code_hmac == otp.data.code
+
+      refute Map.has_key?(
+               OtpManager.get_code(:test_schema, %{id: :verify_storage}, "signin").data,
+               :code
+             )
+    end
+
+    test "two concurrent verifications of the right code succeed once" do
+      {:ok, otp} = Otp.generate(:test_schema, :verify_race, "signin")
+
+      results =
+        1..20
+        |> Enum.map(fn _ ->
+          Task.async(fn ->
+            OtpManager.verify_code(:test_schema, %{id: :verify_race}, "signin", otp.data.code)
+          end)
+        end)
+        |> Enum.map(&Task.await/1)
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    end
+
     test "no code means invalid" do
       assert {:error, [%{message: "invalid otp"}]} =
                OtpManager.verify_code(:test_schema, %{id: :verify_none}, "signin", "1234")
@@ -197,4 +295,13 @@ defmodule ArkeAuth.Core.OtpTest do
     |> Integer.to_string()
     |> String.pad_leading(digits, "0")
   end
+
+  defp put_otp_config(config) do
+    previous = Application.get_env(:arke_auth, ArkeAuth.Otp)
+    on_exit(fn -> restore_env(ArkeAuth.Otp, previous) end)
+    Application.put_env(:arke_auth, ArkeAuth.Otp, config)
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:arke_auth, key)
+  defp restore_env(key, value), do: Application.put_env(:arke_auth, key, value)
 end
