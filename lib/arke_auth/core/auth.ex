@@ -188,7 +188,7 @@ defmodule ArkeAuth.Core.Auth do
       {:ok, :current} ->
         {:ok, user}
 
-      {:ok, :legacy} ->
+      {:ok, kind} when kind in [:legacy, :wrapped] ->
         rehash(user, password)
         {:ok, user}
 
@@ -197,7 +197,7 @@ defmodule ArkeAuth.Core.Auth do
     end
   end
 
-  # A legacy hash (no pepper) is replaced by a peppered one at the first
+  # A legacy or wrapped hash is replaced by a peppered one at the first
   # successful sign-in. A failure only delays the migration.
   defp rehash(user, password) do
     case User.update_password(user, password) do

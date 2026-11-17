@@ -13,11 +13,18 @@
 # limitations under the License.
 
 defmodule Mix.Tasks.ArkeAuth.PasswordStatus do
-  @shortdoc "Counts the users whose password hash is peppered or legacy"
+  @shortdoc "Counts the users by kind of password hash"
   @moduledoc """
-  Counts the users of `arke_system` whose password hash already carries the
-  pepper (`pep1$`) and those still on a legacy hash, which is re-hashed at
-  their next sign-in. Read only.
+  Counts the users of `arke_system` by kind of password hash. Read only.
+
+    * `current`: peppered (`pep1$`);
+    * `wrapped`: a legacy hash wrapped with the pepper (`pepw$`), see
+      `mix arke_auth.wrap_legacy_passwords`;
+    * `legacy`: plain bcrypt, accepted only while `accept_legacy_hashes` is
+      true;
+    * `invalid`: no usable hash.
+
+  Legacy and wrapped hashes become `current` at the user's next sign-in.
 
       $ mix arke_auth.password_status
   """
@@ -32,15 +39,14 @@ defmodule Mix.Tasks.ArkeAuth.PasswordStatus do
   end
 
   @doc false
-  # %{peppered: n, legacy: n} over the users of arke_system.
+  # %{current: n, wrapped: n, legacy: n, invalid: n} over the users of arke_system.
   def count() do
     Arke.QueryManager.filter_by(project: :arke_system, arke_id: :user)
-    |> Enum.reduce(%{peppered: 0, legacy: 0}, fn user, acc ->
-      key = if Password.current?(Map.get(user.data, :password_hash)), do: :peppered, else: :legacy
-      Map.update!(acc, key, &(&1 + 1))
+    |> Enum.reduce(%{current: 0, wrapped: 0, legacy: 0, invalid: 0}, fn user, acc ->
+      Map.update!(acc, Password.kind(Map.get(user.data, :password_hash)), &(&1 + 1))
     end)
   end
 
-  defp format(%{peppered: peppered, legacy: legacy}),
-    do: "peppered: #{peppered}\nlegacy: #{legacy}"
+  defp format(counts),
+    do: Enum.map_join([:current, :wrapped, :legacy, :invalid], "\n", &"#{&1}: #{counts[&1]}")
 end

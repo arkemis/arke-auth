@@ -83,13 +83,80 @@ defmodule ArkeAuth.Core.PasswordTest do
     assert_raise ArgumentError, &Password.validate_config!/0
   end
 
-  test "mix arke_auth.password_status counts both kinds" do
-    user = create_user("pepper_status_legacy")
+  test "mix arke_auth.password_status counts each kind" do
+    legacy = create_user("pepper_status_legacy")
+    wrapped = create_user("pepper_status_wrapped")
     create_user("pepper_status_current")
-    write_hash(user, Comeonin.Bcrypt.hashpwsalt("password"))
+    write_hash(legacy, Comeonin.Bcrypt.hashpwsalt("password"))
+    {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+    write_hash(wrapped, hash)
 
     counts = Mix.Tasks.ArkeAuth.PasswordStatus.count()
     assert counts.legacy >= 1
-    assert counts.peppered >= 1
+    assert counts.wrapped >= 1
+    assert counts.current >= 1
+  end
+
+  describe "wrapped legacy hashes" do
+    test "a wrapped hash signs in and is re-hashed with the pepper" do
+      user = create_user("wrap_login")
+      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+      write_hash(user, hash)
+
+      assert Password.kind(stored_hash("wrap_login")) == :wrapped
+      assert {:error, _} = Auth.validate_credentials("wrap_login", "wrong", :test_schema)
+      assert {:ok, _, _, _} = Auth.validate_credentials("wrap_login", "password", :test_schema)
+      assert Password.kind(stored_hash("wrap_login")) == :current
+    end
+
+    test "a wrapped hash cannot be forged without the pepper" do
+      user = create_user("wrap_forged")
+      legacy = Comeonin.Bcrypt.hashpwsalt("chosen_by_attacker")
+      forged = "pepw$" <> binary_part(legacy, 0, 29) <> String.duplicate("A", 43)
+      write_hash(user, forged)
+
+      assert {:error, _} =
+               Auth.validate_credentials("wrap_forged", "chosen_by_attacker", :test_schema)
+
+      assert Password.verify("x", "pepw$garbage") == :error
+      assert Password.wrap("not a bcrypt hash") == :error
+    end
+
+    test "with accept_legacy_hashes: false a legacy hash is refused, a wrapped one is not" do
+      put_password_config(accept_legacy_hashes: false)
+      legacy = create_user("legacy_refused")
+      write_hash(legacy, Comeonin.Bcrypt.hashpwsalt("password"))
+      wrapped = create_user("wrapped_accepted")
+      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+      write_hash(wrapped, hash)
+
+      assert {:error, _} = Auth.validate_credentials("legacy_refused", "password", :test_schema)
+
+      assert {:ok, _, _, _} =
+               Auth.validate_credentials("wrapped_accepted", "password", :test_schema)
+    end
+
+    test "mix arke_auth.wrap_legacy_passwords wraps only with --confirm" do
+      user = create_user("wrap_task")
+      write_hash(user, Comeonin.Bcrypt.hashpwsalt("password"))
+
+      assert %{legacy: legacy, wrapped: 0} = Mix.Tasks.ArkeAuth.WrapLegacyPasswords.wrap(false)
+      assert legacy >= 1
+      assert Password.kind(stored_hash("wrap_task")) == :legacy
+
+      assert %{wrapped: wrapped} = Mix.Tasks.ArkeAuth.WrapLegacyPasswords.wrap(true)
+      assert wrapped == legacy
+      assert Password.kind(stored_hash("wrap_task")) == :wrapped
+      assert %{legacy: 0} = Mix.Tasks.ArkeAuth.WrapLegacyPasswords.wrap(true)
+
+      put_password_config(accept_legacy_hashes: false)
+      assert {:ok, _, _, _} = Auth.validate_credentials("wrap_task", "password", :test_schema)
+    end
+  end
+
+  defp put_password_config(opts) do
+    previous = Application.get_env(:arke_auth, Password)
+    on_exit(fn -> Application.put_env(:arke_auth, Password, previous) end)
+    Application.put_env(:arke_auth, Password, Keyword.merge(previous, opts))
   end
 end

@@ -42,6 +42,7 @@ config :arke_auth, ArkeAuth.Core.Password,
 | `config :arke_auth, ArkeAuth.Otp, max_attempts:` | `5` | positive integer | — |
 | `config :arke_auth, ArkeAuth.Core.Auth, max_failed_logins:, lockout_seconds:` | `10`, `900` | `max_failed_logins: 0` disables the lockout | — |
 | `config :arke_auth, :reset_password_token_ttl` | `[weeks: 2]` | `weeks`, `days`, `hours`, `minutes`, `seconds`; at most 2 weeks | at startup |
+| `config :arke_auth, ArkeAuth.Core.Password, accept_legacy_hashes:` | `true` | `false` after `wrap_legacy_passwords` (see §3) | at each check |
 | `config :arke_auth, :temporary_token_expiration` | `86_400` (seconds, 1 day) | at most 30 days | when a token is generated |
 
 A value checked at startup that is out of range makes `arke_auth` refuse to
@@ -60,9 +61,21 @@ error.
   deploy loses them at each restart.
 - Attempt limits (OTP guesses, login lockout, app review code) now hold for
   the whole cluster instead of once per node.
-- Legacy password hashes keep working and are re-hashed with the pepper at
-  the next successful sign-in. `mix arke_auth.password_status` counts the
-  users still on a legacy hash.
+- Legacy password hashes (plain bcrypt) keep working and are re-hashed with
+  the pepper at the next successful sign-in. **While they are accepted,
+  whoever can write the database can set a bcrypt of a chosen password on any
+  user and sign in.** Close it right after the deploy:
+  1. back up the database and the pepper;
+  2. `mix arke_auth.wrap_legacy_passwords` (counts) then
+     `mix arke_auth.wrap_legacy_passwords --confirm`: every legacy hash
+     becomes `"pepw$" <> salt <> HMAC(pepper, legacy_hash)`, which verifies
+     the same password and cannot be forged without the pepper. Users notice
+     nothing; wrapped hashes are re-hashed at the next sign-in too;
+  3. set `accept_legacy_hashes: false` and deploy, so that a legacy hash
+     written into the database later is refused.
+
+  `mix arke_auth.password_status` counts the users by kind (`current`,
+  `wrapped`, `legacy`, `invalid`).
 - The `otp`, `temporary_token` and `reset_password_token` arkes and their
   parameters (`code`, `action`, `expiry_datetime`, `expiration_datetime`,
   `is_reusable`, `link_member`, `expiration`, `user_id`, `token`) left the
@@ -101,13 +114,16 @@ error.
 - `ArkeAuth.ResetPasswordToken`: `issue/1` returns
   `{:ok, %{token:, expiration:, user_id:}}`, `verify/1` returns the user. A
   password change voids every earlier link.
-- New `ArkeAuth.Core.Password` (`hash/1`, `verify/2`) and
+- New `ArkeAuth.Core.Password` (`hash/1`, `verify/2`, `kind/1`, `wrap/1`) and
   `ArkeAuth.Utils.TokenCrypto`.
 
 ### 5. Checklist for known applications
 
 - Every application: add `token_key` and `pepper` to `runtime.exs` and to the
   test config; back up the pepper.
+- Every application, after the deploy: run
+  `mix arke_auth.wrap_legacy_passwords --confirm` (after a backup), then set
+  `accept_legacy_hashes: false`.
 - Applications that build invitation links with `TemporaryToken` (e.g.
   bandit's `InvitedMember`): validate with `TemporaryToken.verify(project,
   token, member_id)` instead of `QueryManager.get_by`, close the invitation
