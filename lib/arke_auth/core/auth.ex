@@ -184,7 +184,7 @@ defmodule ArkeAuth.Core.Auth do
   end
 
   defp verify_password(password, user) when is_binary(password) do
-    case ArkeAuth.Core.Password.verify(password, user.data.password_hash) do
+    case ArkeAuth.Core.Password.verify(password, user.data.password_hash, user.id) do
       {:ok, :current} ->
         {:ok, user}
 

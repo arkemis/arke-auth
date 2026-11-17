@@ -69,7 +69,7 @@ defmodule ArkeAuth.Core.PasswordTest do
   end
 
   test "verify/2 refuses a missing hash" do
-    assert Password.verify("password", nil) == :error
+    assert Password.verify("password", nil, "any_user") == :error
   end
 
   test "validate_config!/0 refuses a missing or short pepper" do
@@ -88,7 +88,7 @@ defmodule ArkeAuth.Core.PasswordTest do
     wrapped = create_user("pepper_status_wrapped")
     create_user("pepper_status_current")
     write_hash(legacy, Comeonin.Bcrypt.hashpwsalt("password"))
-    {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+    {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"), wrapped.id)
     write_hash(wrapped, hash)
 
     counts = Mix.Tasks.ArkeAuth.PasswordStatus.count()
@@ -100,7 +100,7 @@ defmodule ArkeAuth.Core.PasswordTest do
   describe "wrapped legacy hashes" do
     test "a wrapped hash signs in and is re-hashed with the pepper" do
       user = create_user("wrap_login")
-      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"), user.id)
       write_hash(user, hash)
 
       assert Password.kind(stored_hash("wrap_login")) == :wrapped
@@ -118,8 +118,8 @@ defmodule ArkeAuth.Core.PasswordTest do
       assert {:error, _} =
                Auth.validate_credentials("wrap_forged", "chosen_by_attacker", :test_schema)
 
-      assert Password.verify("x", "pepw$garbage") == :error
-      assert Password.wrap("not a bcrypt hash") == :error
+      assert Password.verify("x", "pepw$garbage", user.id) == :error
+      assert Password.wrap("not a bcrypt hash", user.id) == :error
     end
 
     test "with accept_legacy_hashes: false a legacy hash is refused, a wrapped one is not" do
@@ -127,7 +127,7 @@ defmodule ArkeAuth.Core.PasswordTest do
       legacy = create_user("legacy_refused")
       write_hash(legacy, Comeonin.Bcrypt.hashpwsalt("password"))
       wrapped = create_user("wrapped_accepted")
-      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"))
+      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("password"), wrapped.id)
       write_hash(wrapped, hash)
 
       assert {:error, _} = Auth.validate_credentials("legacy_refused", "password", :test_schema)
@@ -151,6 +151,55 @@ defmodule ArkeAuth.Core.PasswordTest do
 
       put_password_config(accept_legacy_hashes: false)
       assert {:ok, _, _, _} = Auth.validate_credentials("wrap_task", "password", :test_schema)
+    end
+  end
+
+  describe "hashes bound to the user" do
+    test "a new user is stored with a bound hash, never a pending value" do
+      create_user("bound_new")
+      assert Password.kind(stored_hash("bound_new")) == :current
+      refute stored_hash("bound_new") =~ "pend$"
+    end
+
+    test "a peppered hash copied onto another user does not sign in" do
+      attacker = create_user("bound_attacker", "attacker_password")
+      victim = create_user("bound_victim", "victim_password")
+      write_hash(victim, stored_hash("bound_attacker"))
+
+      assert {:error, _} =
+               Auth.validate_credentials("bound_victim", "attacker_password", :test_schema)
+
+      assert {:ok, _, _, _} =
+               Auth.validate_credentials("bound_attacker", "attacker_password", :test_schema)
+
+      assert Password.verify("attacker_password", stored_hash("bound_attacker"), attacker.id) ==
+               {:ok, :current}
+    end
+
+    test "a wrapped hash copied onto another user does not sign in" do
+      attacker = create_user("wrap_attacker")
+      victim = create_user("wrap_victim")
+      {:ok, hash} = Password.wrap(Comeonin.Bcrypt.hashpwsalt("attacker_password"), attacker.id)
+      write_hash(victim, hash)
+
+      assert {:error, _} =
+               Auth.validate_credentials("wrap_victim", "attacker_password", :test_schema)
+    end
+
+    test "a pending value written into the database verifies no password" do
+      user = create_user("pending_written")
+      write_hash(user, Password.pending("chosen"))
+
+      assert {:error, _} = Auth.validate_credentials("pending_written", "chosen", :test_schema)
+      assert Password.kind(stored_hash("pending_written")) == :invalid
+    end
+
+    test "a password change keeps the hash bound" do
+      user = create_user("bound_change")
+      {:ok, _} = User.update_password(user, "new_password")
+
+      assert {:ok, _, _, _} =
+               Auth.validate_credentials("bound_change", "new_password", :test_schema)
     end
   end
 

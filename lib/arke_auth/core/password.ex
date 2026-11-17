@@ -14,11 +14,15 @@
 
 defmodule ArkeAuth.Core.Password do
   @moduledoc """
-  Password hashing with a pepper: `"pep1$" <> bcrypt(HMAC(pepper, password))`.
+  Password hashing with a pepper, bound to the user:
+
+      "pep1$" <> bcrypt(HMAC(pepper, user_id <> <<0>> <> HMAC(pepper, password)))
 
   The pepper is a secret that never lives in the database, so a bcrypt hash
   written straight into the database (or cracked offline from a dump) is
-  useless without it:
+  useless without it. The user id in the HMAC makes a hash valid only for its
+  user: copying the hash of an account whose password one knows onto another
+  user does not open that user.
 
       config :arke_auth, ArkeAuth.Core.Password,
         pepper: System.fetch_env!("ARKE_AUTH_PASSWORD_PEPPER")
@@ -29,14 +33,18 @@ defmodule ArkeAuth.Core.Password do
   `ArkeAuth.Application` refuses to start without a pepper of at least #{32}
   bytes.
 
+  A user's id exists only once the unit is built, after `before_load`: on
+  create `ArkeAuth.Core.User` stores a pending value (`pending/1`, which
+  verifies no password) and binds it in `before_create` (`bind_pending/2`).
+
   Hashes without a prefix are legacy hashes (plain bcrypt). While they are
   accepted, whoever can write the database can set a bcrypt of a password of
   their choice on any user and sign in. To close that:
 
     1. `mix arke_auth.wrap_legacy_passwords --confirm` turns every legacy hash
-       into a wrapped one, `"pepw$" <> salt <> HMAC(pepper, legacy_hash)`,
-       without knowing the passwords: the wrapped hash verifies the same
-       password and is useless without the pepper;
+       into a wrapped one, `"pepw$" <> salt <> HMAC(pepper, user_id <> <<0>> <>
+       legacy_hash)`, without knowing the passwords: the wrapped hash verifies
+       the same password, only for its user, and is useless without the pepper;
     2. then `accept_legacy_hashes: false` refuses any legacy hash left or
        written later:
 
@@ -46,42 +54,62 @@ defmodule ArkeAuth.Core.Password do
 
   `ArkeAuth.Core.Auth` re-hashes legacy and wrapped hashes with the pepper at
   the next successful sign-in. `mix arke_auth.password_status` counts the
-  three kinds.
+  kinds.
   """
   import Comeonin.Bcrypt, only: [hashpwsalt: 1, checkpw: 2, dummy_checkpw: 0]
 
+  alias ArkeAuth.Utils.TokenCrypto
+
   @prefix "pep1$"
   @wrap_prefix "pepw$"
+  @pending_prefix "pend$"
   # A bcrypt hash: "$2b$" <> cost <> "$" <> 22 chars of salt <> 31 chars of hash.
   @bcrypt ~r/\A\$2[aby]\$\d{2}\$[.\/A-Za-z0-9]{53}\z/
   @bcrypt_salt ~r/\A\$2[aby]\$\d{2}\$[.\/A-Za-z0-9]{22}\z/
   @min_pepper_bytes 32
 
-  @doc "The peppered hash of `password`."
-  @spec hash(String.t()) :: String.t()
-  def hash(password) when is_binary(password), do: @prefix <> hashpwsalt(peppered(password))
+  @doc "The peppered hash of `password` for the user `user_id`."
+  @spec hash(String.t(), term()) :: String.t()
+  def hash(password, user_id) when is_binary(password),
+    do: @prefix <> hashpwsalt(bind(user_id, peppered(password)))
 
   @doc """
-  Checks `password` against `stored_hash`: `{:ok, :current}` for a peppered
-  hash, `{:ok, :wrapped}` for a wrapped legacy hash, `{:ok, :legacy}` for a
-  plain bcrypt hash while `accept_legacy_hashes` is true, `:error` otherwise.
+  A provisional value for a user that has no id yet. It verifies no password:
+  turn it into a hash with `bind_pending/2` once the id is known.
   """
-  @spec verify(String.t(), String.t() | nil) :: {:ok, :current | :wrapped | :legacy} | :error
-  def verify(password, @prefix <> hash) when is_binary(password),
-    do: if(checkpw(peppered(password), hash), do: {:ok, :current}, else: :error)
+  @spec pending(String.t()) :: String.t()
+  def pending(password) when is_binary(password), do: @pending_prefix <> peppered(password)
 
-  def verify(password, @wrap_prefix <> <<salt::binary-size(29), digest::binary>>)
+  @doc "The hash for `user_id` of a value made by `pending/1`; other values unchanged."
+  @spec bind_pending(term(), term()) :: term()
+  def bind_pending(@pending_prefix <> peppered, user_id),
+    do: @prefix <> hashpwsalt(bind(user_id, peppered))
+
+  def bind_pending(hash, _user_id), do: hash
+
+  @doc """
+  Checks `password` against the `stored_hash` of the user `user_id`:
+  `{:ok, :current}` for a peppered hash, `{:ok, :wrapped}` for a wrapped
+  legacy hash, `{:ok, :legacy}` for a plain bcrypt hash while
+  `accept_legacy_hashes` is true, `:error` otherwise.
+  """
+  @spec verify(String.t(), String.t() | nil, term()) ::
+          {:ok, :current | :wrapped | :legacy} | :error
+  def verify(password, @prefix <> hash, user_id) when is_binary(password),
+    do: if(checkpw(bind(user_id, peppered(password)), hash), do: {:ok, :current}, else: :error)
+
+  def verify(password, @wrap_prefix <> <<salt::binary-size(29), digest::binary>>, user_id)
       when is_binary(password) do
     with true <- Regex.match?(@bcrypt_salt, salt),
          legacy = Bcrypt.Base.hash_password(password, salt),
-         true <- ArkeAuth.Utils.TokenCrypto.secure_compare(wrap_digest(legacy), digest) do
+         true <- TokenCrypto.secure_compare(wrap_digest(user_id, legacy), digest) do
       {:ok, :wrapped}
     else
       _ -> :error
     end
   end
 
-  def verify(password, hash) when is_binary(password) and is_binary(hash) do
+  def verify(password, hash, _user_id) when is_binary(password) and is_binary(hash) do
     if accept_legacy?() and legacy?(hash) do
       if checkpw(password, hash), do: {:ok, :legacy}, else: :error
     else
@@ -90,7 +118,7 @@ defmodule ArkeAuth.Core.Password do
     end
   end
 
-  def verify(_password, _hash) do
+  def verify(_password, _hash, _user_id) do
     dummy_verify()
     :error
   end
@@ -110,13 +138,14 @@ defmodule ArkeAuth.Core.Password do
   def kind(hash), do: if(legacy?(hash), do: :legacy, else: :invalid)
 
   @doc """
-  Wraps a legacy bcrypt hash with the pepper: the result verifies the same
-  password, and cannot be forged without the pepper.
+  Wraps the legacy bcrypt hash of the user `user_id` with the pepper: the
+  result verifies the same password for that user only, and cannot be forged
+  without the pepper.
   """
-  @spec wrap(String.t()) :: {:ok, String.t()} | :error
-  def wrap(hash) do
+  @spec wrap(String.t(), term()) :: {:ok, String.t()} | :error
+  def wrap(hash, user_id) do
     if legacy?(hash),
-      do: {:ok, @wrap_prefix <> binary_part(hash, 0, 29) <> wrap_digest(hash)},
+      do: {:ok, @wrap_prefix <> binary_part(hash, 0, 29) <> wrap_digest(user_id, hash)},
       else: :error
   end
 
@@ -138,19 +167,23 @@ defmodule ArkeAuth.Core.Password do
   end
 
   # A fixed-length input also avoids bcrypt truncating passwords at 72 bytes.
-  defp peppered(password) do
+  defp peppered(password), do: mac(password)
+
+  defp bind(user_id, peppered), do: mac(to_string(user_id) <> <<0>> <> peppered)
+
+  defp wrap_digest(user_id, legacy_hash) do
     validate_config!()
-    :crypto.mac(:hmac, :sha256, pepper(), password) |> Base.encode64()
+
+    :crypto.mac(:hmac, :sha256, pepper(), "pepw:" <> to_string(user_id) <> <<0>> <> legacy_hash)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp mac(data) do
+    validate_config!()
+    :crypto.mac(:hmac, :sha256, pepper(), data) |> Base.encode64()
   end
 
   defp legacy?(hash), do: is_binary(hash) and Regex.match?(@bcrypt, hash)
-
-  defp wrap_digest(legacy_hash) do
-    validate_config!()
-
-    :crypto.mac(:hmac, :sha256, pepper(), "pepw:" <> legacy_hash)
-    |> Base.url_encode64(padding: false)
-  end
 
   defp accept_legacy?(),
     do:

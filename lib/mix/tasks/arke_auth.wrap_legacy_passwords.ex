@@ -16,7 +16,7 @@ defmodule Mix.Tasks.ArkeAuth.WrapLegacyPasswords do
   @shortdoc "Wraps the legacy password hashes with the pepper"
   @moduledoc """
   Turns every legacy (plain bcrypt) password hash of `arke_system` into a
-  wrapped one, `"pepw$" <> salt <> HMAC(pepper, legacy_hash)`. Users keep
+  wrapped one, `"pepw$" <> salt <> HMAC(pepper, user_id <> legacy_hash)`. Users keep
   their password and notice nothing; the hash in the database becomes useless
   without the pepper.
 
@@ -66,7 +66,7 @@ defmodule Mix.Tasks.ArkeAuth.WrapLegacyPasswords do
   # User.before_update/3 refuses a password_hash set directly, so the wrapped
   # hash goes through the configured persistence.
   defp wrap_user(%{data: data} = user) do
-    {:ok, hash} = Password.wrap(data.password_hash)
+    {:ok, hash} = Password.wrap(data.password_hash, user.id)
     update = Application.get_env(:arke, :persistence)[:arke_postgres][:update]
 
     case update.(:arke_system, %{user | data: Map.put(data, :password_hash, hash)}) do
