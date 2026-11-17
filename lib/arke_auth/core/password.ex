@@ -22,7 +22,9 @@ defmodule ArkeAuth.Core.Password do
   written straight into the database (or cracked offline from a dump) is
   useless without it. The user id in the HMAC makes a hash valid only for its
   user: copying the hash of an account whose password one knows onto another
-  user does not open that user.
+  user does not open that user. It does not protect the user → member link:
+  whoever writes the database can still point a member at another user (see
+  "What this release does not cover" in `UPGRADING.md`).
 
       config :arke_auth, ArkeAuth.Core.Password,
         pepper: System.fetch_env!("ARKE_AUTH_PASSWORD_PEPPER")

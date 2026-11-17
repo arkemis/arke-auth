@@ -4,8 +4,16 @@
 
 One-time codes, magic links and login links no longer live in the database,
 password reset links are signed instead of stored, and password hashes are
-peppered. Whoever reads or writes the database can no longer recover or forge
-a credential: every check needs a secret that only the application holds.
+peppered and bound to their user. Every check needs a secret that only the
+application holds:
+
+- whoever **reads** the database gets no usable credential: no OTP, token or
+  link, and no password hash that can be cracked offline without the pepper;
+- whoever **writes** the database cannot forge an OTP, a token or a reset
+  link, cannot make a valid password hash, and cannot reuse the hash of one
+  user on another.
+
+See "What this release does not cover" at the end.
 
 ### 1. New required configuration
 
@@ -117,7 +125,17 @@ error.
 - New `ArkeAuth.Core.Password` (`hash/1`, `verify/2`, `kind/1`, `wrap/1`) and
   `ArkeAuth.Utils.TokenCrypto`.
 
-### 5. Checklist for known applications
+### 5. What this release does not cover
+
+Whoever can write the database can still change users, members and
+permissions, and sign in through them: point a member's `arke_system_user`
+at a user whose password they know, create a `super_admin` member linked to
+such a user, or change a member's `arke_id` or permissions. Sign-in trusts
+the user → member link it reads from the database. Protecting it needs the
+integrity of those rows (e.g. signing the identity and role fields of each
+member), which is a separate piece of work.
+
+### 6. Checklist for known applications
 
 - Every application: add `token_key` and `pepper` to `runtime.exs` and to the
   test config; back up the pepper.
