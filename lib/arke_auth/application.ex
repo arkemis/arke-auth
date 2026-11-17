@@ -23,7 +23,6 @@ defmodule ArkeAuth.Application do
   def start(_type, _args) do
     ArkeAuth.Utils.TokenCrypto.validate_config!()
     ArkeAuth.Core.Otp.validate_config!()
-    ArkeAuth.Core.MemberToken.validate_config!()
     ArkeAuth.ResetPasswordToken.validate_config!()
     ArkeAuth.Core.Password.validate_config!()
 

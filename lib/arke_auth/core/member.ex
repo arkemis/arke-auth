@@ -84,7 +84,7 @@ defmodule ArkeAuth.Core.Member do
     update_linked_user(arke, unit)
   end
 
-  # Sign-in links are issued by ArkeAuth.Core.MemberToken; the field is kept
+  # Sign-in links are issued by ArkeAuth.Core.TemporaryToken; the field is kept
   # but no longer gives access.
   defp warn_legacy_auth_token(%{data: data}) do
     case Map.get(data, :auth_token) do
@@ -94,7 +94,7 @@ defmodule ArkeAuth.Core.Member do
       _token ->
         Logger.warning(
           "member auth_token is deprecated and no longer signs in: " <>
-            "use ArkeAuth.Core.MemberToken.issue/3"
+            "use ArkeAuth.Core.TemporaryToken.generate_auth_token/5"
         )
     end
   end
@@ -134,7 +134,6 @@ defmodule ArkeAuth.Core.Member do
 
   defp revoke_tokens(%{id: id, metadata: %{project: project}}) do
     ArkeAuth.Core.TemporaryToken.revoke_all_for_member(project, id)
-    ArkeAuth.Core.MemberToken.revoke_all_for_member(project, id)
   end
 
   defp revoke_tokens(_unit), do: :ok

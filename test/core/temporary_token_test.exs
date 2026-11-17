@@ -1,6 +1,8 @@
 defmodule ArkeAuth.Core.TemporaryTokenTest do
   use ArkeAuth.RepoCase
 
+  import ExUnit.CaptureLog
+
   alias ArkeAuth.Core.TemporaryToken
 
   setup do
@@ -135,6 +137,21 @@ defmodule ArkeAuth.Core.TemporaryTokenTest do
       QueryManager.delete(:test_schema, member)
 
       assert {:error, _} = TemporaryToken.verify(:test_schema, token.id)
+    end
+  end
+
+  describe "defaults and the legacy field" do
+    test "a token lasts 1 day by default", %{member: member} do
+      {:ok, token} = TemporaryToken.generate_auth_token(:test_schema, member)
+      seconds = NaiveDateTime.diff(token.data.expiration_datetime, NaiveDateTime.utc_now())
+
+      assert seconds in 86_390..86_400
+    end
+
+    test "setting the legacy auth_token field logs a deprecation", %{member: member} do
+      log = capture_log(fn -> QueryManager.update(member, auth_token: "legacy") end)
+      assert log =~ "auth_token is deprecated"
+      assert log =~ "TemporaryToken.generate_auth_token/5"
     end
   end
 end

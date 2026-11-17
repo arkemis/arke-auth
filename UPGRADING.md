@@ -28,8 +28,8 @@ config :arke_auth, ArkeAuth.Core.Password,
   password was hashed with it. There is no rotation for the pepper.
 - The token key can be rotated: set the new one as `token_key` and move the
   old one to `previous_keys`. Reset links signed with an old key keep working
-  while the key is listed; codes and tokens looked up by digest (OTP,
-  temporary and member tokens) are invalidated, which they tolerate because
+  while the key is listed; codes and tokens looked up by digest (OTP
+  codes and temporary tokens) are invalidated, which they tolerate because
   they are short-lived.
 
 ### 2. Optional configuration
@@ -41,9 +41,8 @@ config :arke_auth, ArkeAuth.Core.Password,
 | `config :arke_auth, ArkeAuth.Otp, ttl:` | `{5, :minutes}` | `{n, :seconds \| :minutes \| :days}` | — |
 | `config :arke_auth, ArkeAuth.Otp, max_attempts:` | `5` | positive integer | — |
 | `config :arke_auth, ArkeAuth.Core.Auth, max_failed_logins:, lockout_seconds:` | `10`, `900` | `max_failed_logins: 0` disables the lockout | — |
-| `config :arke_auth, ArkeAuth.Core.MemberToken, ttl_seconds:` | `604_800` (7 days) | at most 30 days | at startup |
 | `config :arke_auth, :reset_password_token_ttl` | `[weeks: 2]` | `weeks`, `days`, `hours`, `minutes`, `seconds`; at most 2 weeks | at startup |
-| `config :arke_auth, :temporary_token_expiration` | `1800` (seconds) | at most 30 days | when a token is generated |
+| `config :arke_auth, :temporary_token_expiration` | `86_400` (seconds, 1 day) | at most 30 days | when a token is generated |
 
 A value checked at startup that is out of range makes `arke_auth` refuse to
 start; a temporary token duration over 30 days makes the generation return an
@@ -54,7 +53,7 @@ error.
 - **Every existing credential stored in the database stops working**: OTP
   codes in flight, temporary tokens (magic links), reset password links and
   values in the member `auth_token` field. Users request a new code or link.
-- OTP codes, temporary tokens, member tokens and attempt counters live in an
+- OTP codes, temporary tokens and attempt counters live in an
   in-memory store shared by the connected nodes (`ArkeAuth.Boundary.TokenStore`,
   one owner registered with `:global`, a replica on every node). They survive
   the loss of a node, **not a restart of every node at once**: a single-node
@@ -91,13 +90,14 @@ error.
     `revoke_all_for_member/2`. Deleting or deactivating a member revokes its
     tokens.
   - `generate_token/4` (a token without a member) is deprecated.
+  - The default duration is 1 day (it was 30 minutes).
+  - A token signs in with `signin` passed either as `auth_token` or as
+    `token`: both go through the same checks. The member `auth_token` field
+    logs a deprecation when set and no longer signs in: generate a token
+    whenever a `?token=` link is needed.
   - Tokens are not units any more: replace `QueryManager.get_by(arke_id:
     :temporary_token, ...)` with `TemporaryToken.verify/3` and
     `QueryManager.delete/2` with `TemporaryToken.revoke/2`.
-- New `ArkeAuth.Core.MemberToken`: `issue/3`, `consume/2`,
-  `revoke_all_for_member/2`. Tokens are single-use and cannot be read back:
-  issue a new one whenever a `?token=` link is needed. Setting the member
-  `auth_token` field logs a deprecation and no longer signs in.
 - `ArkeAuth.ResetPasswordToken`: `issue/1` returns
   `{:ok, %{token:, expiration:, user_id:}}`, `verify/1` returns the user. A
   password change voids every earlier link.
@@ -115,6 +115,9 @@ error.
   re-sending an invitation.
 - Applications that store login links in the member `auth_token` field (e.g.
   reward / incentidirect-backend imports and exports): stop setting the field
-  and call `MemberToken.issue/3` each time a link is exported or mailed.
+  and call `TemporaryToken.generate_auth_token(project, member, %{days: 7})`
+  (or the duration you need) each time a link is exported or mailed; put
+  `token.id` in the `?token=` link. Tokens are single-use and cannot be read
+  back.
 - Tests that changed OTP codes through `QueryManager.update/2`: use
   `ArkeAuth.Core.Otp.put_code/5`.

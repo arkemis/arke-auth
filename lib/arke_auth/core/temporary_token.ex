@@ -14,8 +14,9 @@
 
 defmodule ArkeAuth.Core.TemporaryToken do
   @moduledoc """
-  Bearer tokens for magic links (e.g. invitations): whoever holds one signs
-  in as the linked member.
+  Bearer tokens for sign-in links (invitations, magic links, the links of an
+  export or of a welcome mail): whoever holds one signs in as the linked
+  member, with `signin?token=` or `signin?auth_token=`.
 
   Tokens live only in `ArkeAuth.Boundary.TokenStore`, keyed by an HMAC of the
   token (`ArkeAuth.Utils.TokenCrypto`); the clear token is returned once, to
@@ -41,7 +42,7 @@ defmodule ArkeAuth.Core.TemporaryToken do
 
   @doc """
   A token that signs in as `member` (a member or its id) for `duration`:
-  `nil` (config `:temporary_token_expiration`, default 1800 seconds), a number
+  `nil` (config `:temporary_token_expiration`, default 86400 seconds, 1 day), a number
   of seconds, `%{days: d}`, `%{minutes: m}` or `%{days: d, minutes: m}`, at
   most 30 days. A reusable token survives its uses; otherwise the first
   sign-in consumes it. Extra `opts` are kept with the token and returned in
@@ -134,7 +135,7 @@ defmodule ArkeAuth.Core.TemporaryToken do
   end
 
   defp duration_seconds(nil),
-    do: duration_seconds(Application.get_env(:arke_auth, :temporary_token_expiration, 1800))
+    do: duration_seconds(Application.get_env(:arke_auth, :temporary_token_expiration, 86_400))
 
   defp duration_seconds(seconds) when is_binary(seconds),
     do: seconds |> String.to_integer() |> duration_seconds()
