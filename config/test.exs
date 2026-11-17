@@ -29,3 +29,9 @@ config :arke_auth, ArkeAuth.SSOGuardian,
   secret_key: "Wd0e9tYyb7r8JgQv1L3mZ5pS2kH6nX4cA0fT7uE9iR3oP1sD8gV2jB5qN6wM4yC7",
   verify_issuer: true,
   token_ttl: %{"access" => {7, :days}, "refresh" => {30, :days}}
+
+config :arke_auth, ArkeAuth.Utils.TokenCrypto,
+  token_key: "test-token-key-0123456789abcdef0123456789abcdef0123456789abcdef"
+
+config :arke_auth, ArkeAuth.Core.Password,
+  pepper: "test-password-pepper-0123456789abcdef0123456789abcdef0123456789"

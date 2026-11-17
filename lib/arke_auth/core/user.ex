@@ -13,6 +13,7 @@
 # limitations under the License.
 
 defmodule ArkeAuth.Core.User do
+  alias ArkeAuth.Core.Password
   alias ArkeAuth.Boundary.Validators
 
   alias Arke.Utils.ErrorGenerator, as: Error
@@ -26,6 +27,7 @@ defmodule ArkeAuth.Core.User do
   arke do
   end
 
+  before_write(:bind_password, on: :create)
   before_write(:protect_password, on: :update)
 
   def before_load(data, :create) do
@@ -33,8 +35,9 @@ defmodule ArkeAuth.Core.User do
     case Map.get(data, :arke_id) do
       nil ->
         with {:ok, pwd} <- Validators.check_user_password(data) do
+          # The id does not exist yet: bind_password/1 binds the hash to it.
           new_data =
-            Map.put(data, :password_hash, Bcrypt.hash_pwd_salt(pwd)) |> Map.delete(:password)
+            Map.put(data, :password_hash, Password.pending(pwd)) |> Map.delete(:password)
 
           {:ok, new_data}
         else
@@ -48,6 +51,14 @@ defmodule ArkeAuth.Core.User do
 
   def before_load(data, _persistence_fn), do: {:ok, data}
 
+  # The persistence assigns the id of a new unit after the hooks; the hash
+  # needs it now, so assign it here (a UUID, as the persistence would).
+  defp bind_password(%Hook{unit: %{data: data} = unit} = hook) do
+    id = unit.id || String.to_atom(Arke.Core.Unit.generate_id())
+    hash = Password.bind_pending(Map.get(data, :password_hash), id)
+    {:ok, %{hook | unit: %{unit | id: id, data: Map.put(data, :password_hash, hash)}}}
+  end
+
   # An update may change the credential only by carrying a plain `password`,
   # which is hashed here. A `password_hash` that differs from the stored one is
   # rejected: accepting it would let any caller who can update a user pick its
@@ -57,7 +68,7 @@ defmodule ArkeAuth.Core.User do
 
     cond do
       is_binary(password) and password != "" ->
-        data = Map.put(data, :password_hash, Bcrypt.hash_pwd_salt(password))
+        data = Map.put(data, :password_hash, Password.hash(password, old_unit.id))
         {:ok, %{hook | unit: %{unit | data: data}}}
 
       Map.get(data, :password_hash) != stored_hash(old_unit) ->
@@ -92,9 +103,9 @@ defmodule ArkeAuth.Core.User do
   @spec check_password(user :: ArkeAuth.Core.Unit.t(), pwd :: String.t()) ::
           {:ok, ArkeAuth.Core.Unit.t()} | Arke.Utils.ErrorGenerator.t()
   def check_password(%{data: data} = user, pwd) do
-    case Bcrypt.verify_pass(pwd, data.password_hash) do
-      true -> {:ok, user}
-      false -> Error.create(:auth, "invalid password")
+    case Password.verify(pwd, data.password_hash, user.id) do
+      {:ok, _kind} -> {:ok, user}
+      :error -> Error.create(:auth, "invalid password")
     end
   end
 

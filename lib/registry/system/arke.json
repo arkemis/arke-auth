@@ -1,54 +1,6 @@
 {
   "arke": [
     {
-      "id": "reset_password_token",
-      "label": "Reset password token",
-      "parameters": [
-        {
-          "id": "expiration",
-          "metadata": {
-            "required": true
-          }
-        },
-        {
-          "id": "user_id",
-          "metadata": {
-            "required": true
-          }
-        },
-        {
-          "id": "token",
-          "metadata": {
-            "required": true
-          }
-        }
-      ]
-    },
-    {
-      "id": "otp",
-      "label": "Otp",
-      "parameters": [
-        {
-          "id": "code",
-          "metadata": {
-            "required": true
-          }
-        },
-        {
-          "id": "action",
-          "metadata": {
-            "required": true
-          }
-        },
-        {
-          "id": "expiry_datetime",
-          "metadata": {
-            "required": true
-          }
-        }
-      ]
-    },
-    {
       "id": "user",
       "label": "User",
       "parameters": [

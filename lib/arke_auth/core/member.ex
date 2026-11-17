@@ -22,13 +22,52 @@ defmodule ArkeAuth.Core.Member do
   use Arke.System.Group
   alias Arke.Hook
   alias Arke.Utils.ErrorGenerator, as: Error
+  require Logger
 
   group id: "arke_auth_member" do
   end
 
+  before_write(:warn_legacy_auth_token, on: [:create, :update])
+  before_write(:revoke_tokens_if_inactive, on: :update)
   before_write(:sync_user_create, on: :create)
   before_write(:sync_user_update, on: :update)
+  after_write(:revoke_tokens, on: :delete)
   after_write(:delete_user, on: :delete)
+
+  # Sign-in links are issued by ArkeAuth.Core.TemporaryToken; the field is kept
+  # but no longer gives access.
+  defp warn_legacy_auth_token(%Hook{unit: %{data: data}} = hook) do
+    case Map.get(data, :auth_token) do
+      token when token in [nil, ""] ->
+        :ok
+
+      _token ->
+        Logger.warning(
+          "member auth_token is deprecated and no longer signs in: " <>
+            "use ArkeAuth.Core.TemporaryToken.generate_auth_token/5"
+        )
+    end
+
+    {:ok, hook}
+  end
+
+  defp warn_legacy_auth_token(hook), do: {:ok, hook}
+
+  # A member being deactivated loses its magic links first.
+  defp revoke_tokens_if_inactive(%Hook{unit: unit} = hook) do
+    if inactive?(unit), do: revoke_tokens(hook)
+    {:ok, hook}
+  end
+
+  defp inactive?(%{data: data}), do: Map.get(data, :inactive) in [true, "true"]
+  defp inactive?(_unit), do: false
+
+  defp revoke_tokens(%Hook{unit: %{id: id}, project: project} = hook) when not is_nil(id) do
+    ArkeAuth.Core.TemporaryToken.revoke_all_for_member(project, id)
+    {:ok, hook}
+  end
+
+  defp revoke_tokens(hook), do: {:ok, hook}
 
   defp sync_user_create(%Hook{unit: %{data: %{arke_system_user: arke_system_user}} = unit} = hook)
        when is_map(arke_system_user) do
